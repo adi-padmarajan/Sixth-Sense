@@ -132,7 +132,8 @@ class QueuedTTS:
         `ttl_seconds` discards the item if it hasn't started playing by
         then; use it for scene descriptions that go stale. `on_started(at)`
         receives monotonic first-PCM-submission time after synthesis, once.
-        `is_valid()` is polled before/between audio blocks for session expiry.
+        `is_valid()` is polled before/between audio blocks; use it for session
+        resets, not time expiry, or playback stops mid-sentence.
         `bypass_mute` is reserved for audible host audio-control confirmations.
         """
         if ttl_seconds is not None and (not math.isfinite(ttl_seconds) or ttl_seconds <= 0):

@@ -19,7 +19,7 @@ class AssistantConfig:
     max_scene_age_ms: int = 500
     answer_within_ms: int = 6000
     frame_jpeg_width: int = 480
-    max_tokens: int = 64
+    max_tokens: int = 96
     audit_log: str | None = None
     describe_command: str = "describe"
     direct_question_command: str = "what's in front of me"

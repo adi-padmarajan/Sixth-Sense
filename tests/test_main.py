@@ -245,8 +245,8 @@ def test_shutdown_suppresses_answer_and_further_questions(build, caplog):
 def test_assistant_config_loads_and_resolves_paths():
     cfg = AssistantConfig.load("configs/assistant.json")
     assert cfg.omni_timeout_s == 6 and cfg.answer_within_ms == 6000
-    assert cfg.frame_jpeg_width == 480 and cfg.max_tokens == 64
-    assert cfg.client_config().max_tokens == 64
+    assert cfg.frame_jpeg_width == 480 and cfg.max_tokens == 96
+    assert cfg.client_config().max_tokens == 96
     assert not cfg.cloud_enabled
     assert cfg.audit_log == str(Path("omni/artifacts/yibu_api_calls.jsonl").resolve())
     assert cfg.client_config(cloud_enabled=True).cloud_enabled

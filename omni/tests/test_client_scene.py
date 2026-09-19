@@ -181,6 +181,30 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(outcome["usage"]["total_tokens"], 3)
         self.assertNotIn("private-body", json.dumps(outcome))
 
+    def test_length_truncated_reply_is_trimmed_to_last_sentence(self):
+        from omni._request_worker import trim_truncated
+        cases = [
+            ("A chair is on the left. A person is stan", "length", "A chair is on the left."),
+            ("A chair is on the left.", "length", "A chair is on the left."),
+            ("A chair is on the left and", "length", "A chair is on the left and"),
+            ("A chair is on the left. A person is stan", "stop", "A chair is on the left. A person is stan"),
+            ("A chair is on the left. A person is stan", None, "A chair is on the left. A person is stan"),
+        ]
+        for text, finish, expected in cases:
+            with self.subTest(text=text, finish=finish):
+                body = {"choices": [{"message": {"content": text}, "finish_reason": finish}]}
+                self.assertEqual(trim_truncated(text, body), expected)
+        self.assertEqual(trim_truncated("x. y", {}), "x. y")
+        self.assertEqual(trim_truncated("x. y", {"choices": "bad"}), "x. y")
+        response = Mock(status_code=200)
+        response.json.return_value = {"choices": [{"message": {"content": "Chair left. Person ri"},
+                                                    "finish_reason": "length"}]}
+        response.raise_for_status.return_value = None
+        with patch("omni.yibu_http.httpx.Client") as client, patch("omni.yibu_http.append_audit_record"):
+            client.return_value.__enter__.return_value.post.return_value = response
+            outcome = _request_worker.execute(self.request())
+        self.assertEqual(outcome["text"], "Chair left.")
+
     def test_vendor_errors_are_sanitized(self):
         for exc, reason in ((httpx.ReadTimeout("private-frame"), "network_timeout"),
                             (httpx.ConnectError("unit-key"), "network_error"),
@@ -405,6 +429,17 @@ class QualityAndHandoffTests(unittest.TestCase):
                 outcome = describe_and_speak(self.state, Mock(), speech, clock=self.clock)
             self.assertEqual(outcome.reason, 'stale_scene')
             speech.speak.assert_not_called()
+
+    def test_expiry_during_playback_does_not_cut_speech(self):
+        speech = Mock()
+        result = describe_and_speak(self.state, FakeOmniClient(), speech, clock=self.clock)
+        self.assertEqual(result.status, 'success')
+        is_valid = speech.speak.call_args.kwargs['is_valid']
+        self.assertTrue(is_valid())
+        self.now = result.expires_at + 30  # window elapses while Piper is still talking
+        self.assertTrue(is_valid(), 'time expiry must not stop an answer mid-sentence')
+        self.state.reset()
+        self.assertFalse(is_valid(), 'a camera session reset still cancels')
 
     def test_queued_answer_invalidated_on_reset(self):
         from speech.fakes import FakeTTS

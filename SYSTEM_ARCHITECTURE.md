@@ -396,7 +396,7 @@ capture, outside the TTS/echo-guard path. Muted capture is still refused.
 | `omni_timeout_s` | `6.0` | Request budget is min(timeout, remaining answer lifetime); must be <= answer window |
 | `audit_log` | `../omni/artifacts/yibu_api_calls.jsonl` | Relative to config; client uses fixed purpose `sixth_sense_scene` |
 | `frame_jpeg_width` | `480` | Positive maximum upload width; lowered from 640 to cut upload/model time (provisional) |
-| `max_tokens` | `64` | Reply cap in 1..4096; one sentence is ~25 tokens, so this bounds generation time |
+| `max_tokens` | `96` | Reply cap in 1..4096; one sentence is ~25 tokens, so this bounds generation time. A `finish_reason: length` reply is trimmed to its last complete sentence before speech |
 | `cloud_enabled` | `false` | Application requires `--cloud` regardless of this stored default; `OMNI_FAKE=1` selects fake |
 
 The preview title is hardcoded as `YOLO Distances`; the CV loop exposes no title

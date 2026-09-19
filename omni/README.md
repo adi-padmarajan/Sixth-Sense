@@ -71,8 +71,9 @@ expired, or reset scene evidence. No exception message or request body is logged
 `describe_and_speak(state, client, speech, ...)` hands the result to the existing
 SpeechService at LOW priority for scene descriptions and NORMAL for unavailable
 status. TTL must be finite and positive and is bounded by remaining scene lifetime.
-A per-scene predicate checks generation and expiry before enqueue, before playback,
-and between audio blocks. Root `main.py` wires recording and every grammar handler,
+Expiry is checked before enqueue and gates the start of playback via TTL; once
+speaking, only a camera session reset (generation change) cancels, polled between
+audio blocks — time expiry never cuts an answer mid-sentence. Root `main.py` wires recording and every grammar handler,
 camera startup/reconnect, status, bounded shutdown and one assistant worker. Busy
 questions get a short acknowledgement only outside capture. The application sends
 media only with `--cloud`; `OMNI_FAKE=1` stays local.

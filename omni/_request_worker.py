@@ -10,6 +10,29 @@ from . import yibu_http
 from .yibu_audit import normalize_usage
 
 
+SENTENCE_END = (".", "!", "?", "。", "！", "？")
+
+
+def trim_truncated(text: str, response_json) -> str:
+    """Drop a trailing half sentence when the model hit max_tokens.
+
+    Speaking a clause that stops mid-word sounds like a fault. If the reply
+    contains at least one complete sentence, keep only the complete ones;
+    otherwise return it unchanged rather than saying nothing.
+    """
+    try:
+        finish = (response_json.get("choices") or [{}])[0].get("finish_reason")
+    except (AttributeError, IndexError, TypeError):
+        finish = None
+    if finish != "length":
+        return text
+    stripped = text.rstrip()
+    if stripped.endswith(SENTENCE_END):
+        return stripped
+    cut = max(stripped.rfind(mark) for mark in SENTENCE_END)
+    return stripped[:cut + 1] if cut > 0 else text
+
+
 def execute(request):
     """Run the vendor function and retain only safe accounting fields.
 
@@ -32,10 +55,10 @@ def execute(request):
     original = yibu_http.append_audit_record
     yibu_http.append_audit_record = capture_audit
     try:
-        text, _, _ = yibu_http.chat_completion(**request)
+        text, response_json, _ = yibu_http.chat_completion(**request)
         if not text.strip():
             return dict(accounting, ok=False, reason="empty_response")
-        return dict(accounting, ok=True, text=text[:4096])
+        return dict(accounting, ok=True, text=trim_truncated(text, response_json)[:4096])
     except httpx.TimeoutException:
         return dict(accounting, ok=False, reason="network_timeout")
     except httpx.HTTPStatusError:

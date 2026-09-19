@@ -110,15 +110,18 @@ def describe_and_speak(state, client, speech, **kwargs) -> AssistantResult:
         return result
     clock = kwargs.get("clock", time.monotonic)
     ttl = 0.5 if result.expires_at is None else result.expires_at - clock()
-    def valid():
-        remaining = 0.5 if result.expires_at is None else result.expires_at - clock()
-        return (math.isfinite(remaining) and remaining > 0
-                and (result.session_generation is None
-                     or state.session_generation == result.session_generation))
 
-    if not math.isfinite(ttl) or ttl <= 0 or not valid():
+    def same_session():
+        return (result.session_generation is None
+                or state.session_generation == result.session_generation)
+
+    # Expiry only decides whether the answer may *start* (ttl_seconds drops it if
+    # playback has not begun by then). Once speaking, only a camera session reset
+    # cancels; stopping mid-sentence because the 6 s window elapsed during
+    # playback truncated answers, which is worse than finishing a fresh one.
+    if not math.isfinite(ttl) or ttl <= 0 or not same_session():
         return replace(result, status="unavailable", text="Camera view is unavailable",
                        reason="stale_scene")
     speech.speak(result.text, priority=Priority.LOW if result.status == "success" else Priority.NORMAL,
-                 ttl_seconds=ttl, is_valid=valid)
+                 ttl_seconds=ttl, is_valid=same_session)
     return result
