@@ -46,12 +46,18 @@ class FakeSTT:
 
     Mirrors the real backend's drop-at-source behaviour: text injected
     while muted is discarded, and unmuting counts a recognizer reset.
+    Commands are tagged `source_mode="simulated"` by default; pass
+    `"replay"` when feeding a recorded transcript.
     """
 
-    def __init__(self):
-        self.on_command: Optional[Callable[[str, float], None]] = None
+    def __init__(self, unsupported_phrases: Optional[List[str]] = None, source_mode: str = "simulated"):
+        if source_mode not in ("simulated", "replay"):
+            raise ValueError("FakeSTT source_mode must be 'simulated' or 'replay'")
+        self.source_mode = source_mode
+        self.on_command: Optional[Callable[[str, float, str], None]] = None
         self.on_fault: Optional[Callable[[str], None]] = None
         self.fault_reason: Optional[str] = None
+        self.unsupported_phrases: List[str] = list(unsupported_phrases or [])
         self.started = False
         self.muted = False
         self.resets = 0
@@ -75,7 +81,7 @@ class FakeSTT:
             self.dropped_while_muted.append(text)
             return False
         if self.on_command:
-            self.on_command(text, time.monotonic() if recognized_at is None else recognized_at)
+            self.on_command(text, time.monotonic() if recognized_at is None else recognized_at, self.source_mode)
         return True
 
     def fail(self, reason: str):

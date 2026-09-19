@@ -23,40 +23,59 @@ You should hear "system ready" and then be able to say any word from
 ### Using it from other modules
 
 ```python
-from speech import speech, Priority
+from speech import speech, Priority, SpeechConfig
 
+speech.configure(SpeechConfig.load("configs/speech.json"))   # once, at startup
 speech.speak("obstacle ahead", priority=Priority.HIGH, interrupt=True)
-speech.on("describe", lambda: run_cv_description())
+speech.on("describe", lambda cmd: run_cv_description(request_id=cmd.seq))
 ```
 
 That's the whole contract. `speech` is a singleton configured once at
 startup (see `example-usage.py`); everything else just calls `.speak()`
-or registers a `.on()` handler.
+or registers a `.on()` handler. Handlers receive a frozen `Command` with
+`text`, `seq`, `recognized_at`, `dispatched_at`, `age_seconds`, and
+`source_mode` (`live` from the mic, `simulated`/`replay` from fakes).
+
+- **All settings live in `configs/speech.json`** (`SpeechConfig`,
+  `schema_version` 1): model paths, audio device indices, samplerate and
+  blocksize, echo guard, command age limit, queue size, repeat-suppression
+  window, and the wake-phrase policy. It is validated on load; paths are
+  relative to the config file. `grammar_path` points at `grammar.json`.
 
 - **Priority + interrupt**: `Priority.HIGH` with `interrupt=True` cuts off
   whatever is currently playing and drops any queued lower-priority
   speech. Use this for time-critical alerts, not routine narration —
   reserve `Priority.LOW` for ambient scene descriptions from the CV
   stretch goal so they never block an obstacle warning.
-- **Stop / expiry**: `speech.stop_speaking()` cancels current and queued
-  speech; `speak(..., ttl_seconds=3)` drops a message that hasn't started
-  playing by then (use it for scene descriptions that go stale).
+- **Stop / expiry / repeats**: `speech.stop_speaking()` cancels current and
+  queued speech; `speak(..., ttl_seconds=3)` drops a message that hasn't
+  started playing by then (use it for scene descriptions that go stale);
+  identical text queued again within `dedup_window_seconds` is suppressed
+  unless it is `Priority.HIGH` or `interrupt=True` (`speak()` returns
+  `False` when suppressed).
+- **Wake phrase (optional)**: set `wake_phrase` in the config and commands
+  only dispatch within `wake_window_seconds` after it is heard, except
+  `always_on_commands` (default `["stop speaking"]`). Off by default.
 - **Handlers run on a dispatcher thread**, not the recognition thread, so
   a slow handler doesn't stop listening. Commands older than
   `max_command_age_seconds` (default 2 s) by the time they're dispatched
   are discarded, and unmatched utterances are logged, not silently dropped.
 - **Health**: `speech.health` is `{"tts": ..., "stt": ...}` with values
-  `ready`, `fault`, or `unavailable`; `speech.health_reason` carries the
-  reason. A backend that fails to load or errors during playback/recognition
+  `ready`, `partial`, `fault`, or `unavailable`; `speech.health_reason`
+  carries the reason. `partial` means the recognizer is running but some
+  grammar phrases use words the model doesn't know (they are listed in the
+  reason and can never fire -- e.g. `unmute` with the small English model). A backend that fails to load or errors during playback/recognition
   is reported here instead of taking the other side down. `speak()` returns
   `False` when no TTS is available.
 - **No hardware needed for tests**: `speech.fakes.FakeTTS` / `FakeSTT`
   implement the same interfaces; wire them with
-  `speech.attach(tts=FakeTTS(), stt=FakeSTT())`.
+  `speech.attach(tts=FakeTTS(), stt=FakeSTT(), config=SpeechConfig(...))`.
 - **Grammar-limited STT**: `configs/grammar.json` is the full list of
   recognizable words/phrases. Keeping it small and fixed is what makes
   Vosk fast and reliable here — add to it as you add commands, but don't
-  expect open-vocabulary recognition from this setup.
+  expect open-vocabulary recognition from this setup. Every word is
+  checked against the model's vocabulary at startup; a bare `[unk]` result
+  (speech heard, nothing matched) is logged as `not_understood`.
 
 ### A note on QNX
 

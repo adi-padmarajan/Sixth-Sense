@@ -7,10 +7,10 @@ command set -- exactly the "volume up / mute / describe" style commands
 this project needs, and well suited to embedded hardware.
 
 Runs mic capture + recognition on a background thread and calls
-`on_command(text, recognized_at)` whenever a full utterance matches
-something in the grammar. `recognized_at` is `time.monotonic()` at the
-end of the utterance so the consumer can reject commands that were
-buffered while it was busy. Keep handlers short: the callback runs on the
+`on_command(text, recognized_at, source_mode)` whenever a full utterance
+matches something in the grammar. `recognized_at` is `time.monotonic()`
+at the end of the utterance so the consumer can reject commands that were
+buffered while it was busy; `source_mode` is always "live" here. Keep handlers short: the callback runs on the
 recognition thread (SpeechService moves dispatch off it).
 
 `speech.fakes.FakeSTT` implements the same surface without a microphone.
@@ -23,11 +23,12 @@ import logging
 import queue
 import threading
 import time
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, List, Optional
 
 log = logging.getLogger(__name__)
 
-CommandCallback = Callable[[str, float], None]
+CommandCallback = Callable[[str, float, str], None]
+SOURCE_MODE = "live"
 
 
 class VoskSTT:
@@ -59,7 +60,26 @@ class VoskSTT:
         self.on_fault = on_fault
         self.fault_reason: Optional[str] = None
 
-        grammar_list = list(grammar) + ["[unk]"]
+        # Vosk silently drops words it doesn't know, which would turn a
+        # phrase like "unmute" into nothing. Check every word up front and
+        # keep the unsupported phrases out of the grammar so the rest still
+        # recognize cleanly; the caller reports them via health.
+        self.grammar: List[str] = []
+        self.unsupported_phrases: List[str] = []
+        for phrase in grammar:
+            phrase = phrase.strip().lower()
+            if not phrase:
+                continue
+            missing = [w for w in phrase.split() if self.model.vosk_model_find_word(w) < 0]
+            if missing:
+                log.warning("stt: grammar phrase %r has out-of-vocabulary word(s) %s; disabled", phrase, missing)
+                self.unsupported_phrases.append(phrase)
+            else:
+                self.grammar.append(phrase)
+        if not self.grammar:
+            raise ValueError("stt: no grammar phrase is supported by this model")
+
+        grammar_list = self.grammar + ["[unk]"]
         self.recognizer = KaldiRecognizer(self.model, samplerate, json.dumps(grammar_list))
         self.recognizer.SetWords(True)
 
@@ -141,7 +161,7 @@ class VoskSTT:
                     result = json.loads(self.recognizer.Result())
                     text = result.get("text", "").strip()
                     if text and self.on_command:
-                        self.on_command(text, time.monotonic())
+                        self.on_command(text, time.monotonic(), SOURCE_MODE)
             except Exception as exc:  # noqa: BLE001 - keep listening
                 log.exception("stt: recognition failed")
                 self._report_fault(f"recognition_failed: {exc}")

@@ -1,3 +1,4 @@
-from .service import speech, SpeechService, Priority
+from .config import SpeechConfig
+from .service import speech, Command, SpeechService, Priority
 
-__all__ = ["speech", "SpeechService", "Priority"]
+__all__ = ["speech", "Command", "SpeechConfig", "SpeechService", "Priority"]

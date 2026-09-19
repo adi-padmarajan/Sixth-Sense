@@ -2,32 +2,28 @@
 Run this after downloading models (see scripts/fetch_models.sh and the
 README) to sanity-check the TTS/STT pipeline end to end before wiring it
 into sensors/haptics. This is also the pattern the rest of the project
-should follow: import `speech`, call `configure()` once, then use
-`speak()` / `on()` everywhere else.
+should follow: import `speech`, call `configure()` once with the shared
+config, then use `speak()` / `on()` everywhere else.
 """
 
-import json
 import logging
 import time
 
-from speech import speech, Priority
+from speech import speech, Priority, SpeechConfig
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-GRAMMAR = json.load(open("configs/grammar.json"))
+config = SpeechConfig.load("configs/speech.json")
+health = speech.configure(config)
+print("speech health:", health, speech.health_reason)
 
-health = speech.configure(
-    tts_model_path="speech/models/en_US-lessac-medium.onnx",
-    tts_config_path="speech/models/en_US-lessac-medium.onnx.json",
-    stt_model_path="speech/models/vosk-model-small-en-us-0.15",
-    grammar=GRAMMAR,
-)
-print("speech health:", health)
-
-speech.on("mute", lambda: print("[demo] muted"))
-speech.on("volume up", lambda: print("[demo] volume up"))
-speech.on("describe", lambda: speech.speak("nothing detected nearby", priority=Priority.NORMAL, ttl_seconds=3))
-speech.on("stop", speech.stop_speaking)
+speech.on("mute", lambda cmd: print(f"[demo] muted (seq {cmd.seq}, {cmd.source_mode}, age {cmd.age_seconds:.2f}s)"))
+speech.on("volume up", lambda cmd: print("[demo] volume up"))
+speech.on("device status", lambda cmd: speech.speak(
+    f"speech {speech.health['tts']}, listening {speech.health['stt']}", priority=Priority.NORMAL))
+speech.on("describe", lambda cmd: speech.speak("nothing detected nearby", priority=Priority.NORMAL, ttl_seconds=3))
+speech.on("what's in front of me", lambda cmd: speech.speak("camera view is unavailable", priority=Priority.NORMAL, ttl_seconds=3))
+speech.on("stop speaking", lambda cmd: speech.stop_speaking())
 
 speech.speak("system ready", priority=Priority.NORMAL)
 

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "tts_model_path": "../speech/models/en_US-lessac-medium.onnx",
+  "tts_config_path": "../speech/models/en_US-lessac-medium.onnx.json",
+  "stt_model_path": "../speech/models/vosk-model-small-en-us-0.15",
+  "grammar_path": "grammar.json",
+  "tts_device": null,
+  "stt_device": null,
+  "samplerate": 16000,
+  "blocksize": 4000,
+  "echo_guard_seconds": 0.3,
+  "max_command_age_seconds": 2.0,
+  "max_queue": 16,
+  "dedup_window_seconds": 2.0,
+  "wake_phrase": null,
+  "wake_window_seconds": 5.0,
+  "always_on_commands": ["stop speaking"]
+}

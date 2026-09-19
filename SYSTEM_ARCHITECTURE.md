@@ -25,9 +25,10 @@ keep running.
 | --- | --- | --- | --- |
 | YOLO tracker | `computer-vision/track_distances.py` | [exists] | Ultralytics tracking on camera `0` with the local Objects365 checkpoint; annotated preview; object-to-object **pixel** distances |
 | Scene state | `computer-vision/scene_state.py` | [exists] | Thread-safe latest original frame + detections + monotonic result-receipt timestamp; immutable snapshots, freshness filtering, and reset |
-| Vosk STT | `speech/stt.py` | [exists] | Offline recognizer restricted to `configs/grammar.json`; background mic thread; fires `on_command(text)` |
+| Vosk STT | `speech/stt.py` | [exists] | Offline recognizer restricted to `configs/grammar.json` (words validated against the model at startup); background mic thread; fires `on_command(text, recognized_at, source_mode)` |
 | Piper TTS | `speech/tts.py` | [exists] | Offline synthesis with `LOW / NORMAL / HIGH` priority queue and interrupt |
-| SpeechService | `speech/service.py` | [exists] | Singleton facade: `speech.on(cmd, handler)`, `speech.speak(text, priority)`; mutes the mic while the speaker plays (echo guard) |
+| SpeechService | `speech/service.py` | [exists] | Singleton facade: `speech.on(cmd, handler(Command))`, `speech.speak(text, priority)`; mutes the mic while the speaker plays (echo guard); optional wake-phrase arming; per-subsystem health |
+| SpeechConfig | `speech/config.py`, `configs/speech.json` | [exists] | Validated, versioned settings: model paths, devices, timing, queue limits, wake phrase |
 | Question recorder | `speech/` (extension) | [planned] | After a wake phrase, capture ~3 s of raw mic audio for the assistant instead of feeding it to Vosk |
 | OMNI client | `omni/client.py` | [planned] | Thin wrapper over the cloud API; key from env var; bounded timeout |
 | Scene request builder | `omni/scene.py` | [planned] | Packs audio + frame + detections + system prompt into one request; unpacks the answer |
@@ -258,7 +259,7 @@ working, assistant says it's unavailable, haptics (separate path) continue.
 | --- | --- | --- |
 | `computer-vision/track_distances.py` | [exists] `main(state: SceneState \| None = None)` publishes original frame + all detections before plotting; source mode derives from `SOURCE`; reset at entry and in `finally` | Consumers share the latest evidence without calling OpenCV/YOLO; result-receipt timing limitation documented in §6 |
 | `speech/stt.py` | Add a "capture raw audio for N seconds, bypassing the recogniser" mode, or expose the mic stream | Vosk cannot hear open-vocabulary questions |
-| `configs/grammar.json` | Add the chosen wake phrase if not `describe` | Only grammar entries are recognised |
+| `configs/grammar.json` / `configs/speech.json` | Add the chosen wake phrase to the grammar and set `wake_phrase` | Only grammar entries are recognised; the wake phrase must be in the grammar |
 | `requirements.txt` | Add the OMNI SDK / `requests` / `websockets` as chosen | New dependency |
 | `.gitignore` / env | `OMNI_API_KEY` from environment only | Never in code or logs |
 | New `omni/` package | `client.py`, `scene.py`, `fake.py`, `__init__.py` | The assistant layer |

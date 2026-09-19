@@ -10,18 +10,31 @@ Example, from any other module:
     from speech import speech, Priority
 
     speech.speak("obstacle close, front left", priority=Priority.HIGH, interrupt=True)
-    speech.on("mute", lambda: haptics.set_muted(True))
-    speech.on("volume up", lambda: audio.change_volume(+10))
+    speech.on("mute", lambda cmd: haptics.set_muted(True))
+    speech.on("volume up", lambda cmd: audio.change_volume(+10))
 
-Startup wires real backends with `speech.configure(...)`; tests and the
-simulator wire fakes with `speech.attach(tts=FakeTTS(), stt=FakeSTT())`.
+Handlers receive a frozen `Command` (text, seq, recognized_at, age at
+dispatch, source_mode) so they can build request IDs and their own
+staleness checks; `source_mode` is "live" from the microphone and
+"simulated" / "replay" from `speech.fakes.FakeSTT`.
+
+Startup wires real backends with `speech.configure(SpeechConfig.load(...))`;
+tests and the simulator wire fakes with
+`speech.attach(tts=FakeTTS(), stt=FakeSTT(), config=SpeechConfig(...))`.
 Either backend may be missing -- `speech.health` reports which side is
-`ready`, `fault`, or `unavailable`, and the other keeps working.
+`ready`, `partial` (listening, but some grammar phrases are unsupported by
+the model), `fault`, or `unavailable`, and the other keeps working.
 
 Thread model: recognized commands are queued and handlers run on a
 dedicated dispatcher thread, never on the recognition thread, so a slow
 handler cannot stall listening. Commands older than
 `max_command_age_seconds` when they reach the dispatcher are discarded.
+
+Wake phrase (optional, off by default): when set, a command is dispatched
+only if it was recognized within `wake_window_seconds` after the wake
+phrase, except for `always_on_commands` (e.g. "stop speaking"), which
+always dispatch. Arming is judged on the recognizer's own timestamps, so a
+replayed transcript arms and rejects exactly as the live one did.
 """
 
 from __future__ import annotations
@@ -35,25 +48,45 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
+from .config import SpeechConfig
 from .tts import Priority
 
-__all__ = ["SpeechService", "Priority", "speech"]
+__all__ = ["Command", "SpeechConfig", "SpeechService", "Priority", "speech"]
 
 log = logging.getLogger(__name__)
 
 
+SOURCE_MODES = ("live", "simulated", "replay")
+
+
+@dataclass(frozen=True)
+class Command:
+    """A recognized utterance as handed to `speech.on()` handlers."""
+
+    text: str
+    seq: int
+    recognized_at: float   # time.monotonic() at end of utterance, STT clock
+    dispatched_at: float   # time.monotonic() when the handler was invoked
+    source_mode: str       # "live" | "simulated" | "replay"
+
+    @property
+    def age_seconds(self) -> float:
+        return self.dispatched_at - self.recognized_at
+
+
 @dataclass
-class _Command:
+class _Pending:
     seq: int
     text: str
-    recognized_at: float  # time.monotonic() at end of utterance
+    recognized_at: float
+    source_mode: str
 
 
 class SpeechService:
     def __init__(self):
         self._tts = None
         self._stt = None
-        self._handlers: Dict[str, List[Callable[[], None]]] = defaultdict(list)
+        self._handlers: Dict[str, List[Callable[[Command], None]]] = defaultdict(list)
         # How long to keep the mic muted after TTS playback ends, to cover
         # speaker/room echo tail and mic latency before we trust input again.
         self._echo_guard_seconds = 0.3
@@ -61,30 +94,26 @@ class SpeechService:
         self._timer_lock = threading.Lock()
 
         self._max_command_age_seconds = 2.0
-        self._commands: "queue.Queue[_Command]" = queue.Queue(maxsize=8)
+        self._wake_phrase: Optional[str] = None
+        self._wake_window_seconds = 5.0
+        self._always_on: frozenset = frozenset({"stop speaking"})
+        # recognized_at deadline (STT clock) until which commands dispatch.
+        self.armed_until: float = float("-inf")
+        self._commands: "queue.Queue[_Pending]" = queue.Queue(maxsize=8)
         self._seq = itertools.count()
         self._dispatcher: Optional[threading.Thread] = None
         self._closing = threading.Event()
 
+        self.config = SpeechConfig()
         self.health: Dict[str, str] = {"tts": "unavailable", "stt": "unavailable"}
         self.health_reason: Dict[str, Optional[str]] = {"tts": None, "stt": None}
 
     # -- wiring ---------------------------------------------------------------
 
-    def configure(
-        self,
-        tts_model_path: str,
-        tts_config_path: Optional[str],
-        stt_model_path: str,
-        grammar: List[str],
-        tts_device: Optional[int] = None,
-        stt_device: Optional[int] = None,
-        echo_guard_seconds: float = 0.3,
-        max_command_age_seconds: float = 2.0,
-    ) -> Dict[str, str]:
-        """Call this once at startup with your model paths and command
-        grammar. Kept separate from __init__ so `speech` can be imported
-        anywhere as a singleton before models are actually loaded.
+    def configure(self, config: SpeechConfig) -> Dict[str, str]:
+        """Call this once at startup with a validated `SpeechConfig` that
+        names real model paths. Kept separate from __init__ so `speech`
+        can be imported anywhere as a singleton before models are loaded.
 
         A backend that fails to load is reported in `health` rather than
         raised, so a missing mic doesn't take the speaker down with it.
@@ -92,39 +121,50 @@ class SpeechService:
         from .stt import VoskSTT
         from .tts import PiperTTS
 
+        config.validate(require_models=True)
         tts = stt = None
         try:
-            tts = PiperTTS(tts_model_path, tts_config_path, device=tts_device)
+            tts = PiperTTS(
+                config.tts_model_path,
+                config.tts_config_path,
+                device=config.tts_device,
+                max_queue=config.max_queue,
+                dedup_window_seconds=config.dedup_window_seconds,
+            )
         except Exception as exc:  # noqa: BLE001
             log.exception("speech: failed to load TTS backend")
             self._set_health("tts", "fault", f"load_failed: {exc}")
         try:
-            stt = VoskSTT(stt_model_path, grammar, device=stt_device)
+            stt = VoskSTT(
+                config.stt_model_path,
+                config.grammar,
+                samplerate=config.samplerate,
+                device=config.stt_device,
+                blocksize=config.blocksize,
+            )
         except Exception as exc:  # noqa: BLE001
             log.exception("speech: failed to load STT backend")
             self._set_health("stt", "fault", f"load_failed: {exc}")
 
-        return self.attach(
-            tts=tts,
-            stt=stt,
-            echo_guard_seconds=echo_guard_seconds,
-            max_command_age_seconds=max_command_age_seconds,
-        )
+        return self.attach(tts=tts, stt=stt, config=config)
 
-    def attach(
-        self,
-        tts=None,
-        stt=None,
-        echo_guard_seconds: float = 0.3,
-        max_command_age_seconds: float = 2.0,
-    ) -> Dict[str, str]:
+    def attach(self, tts=None, stt=None, config: Optional[SpeechConfig] = None) -> Dict[str, str]:
         """Wire already-constructed backends (real or fake) and start them.
+        `config` supplies the service-level settings (echo guard, command
+        age, wake phrase); model paths in it are ignored here.
 
         `tts` must provide speak/cancel_all/start/shutdown and the
         on_speak_start/on_speak_end/on_fault attributes (see QueuedTTS);
-        `stt` must provide start/stop/set_muted and on_command/on_fault."""
-        self._echo_guard_seconds = echo_guard_seconds
-        self._max_command_age_seconds = max_command_age_seconds
+        `stt` must provide start/stop/set_muted and on_command/on_fault, and
+        call `on_command(text, recognized_at, source_mode)`."""
+        config = config or SpeechConfig()
+        self.config = config
+        self._echo_guard_seconds = config.echo_guard_seconds
+        self._max_command_age_seconds = config.max_command_age_seconds
+        self._wake_phrase = config.wake_phrase
+        self._wake_window_seconds = config.wake_window_seconds
+        self._always_on = frozenset(config.always_on_commands)
+        self.armed_until = float("-inf")
 
         self._tts = tts
         if tts is not None:
@@ -140,7 +180,12 @@ class SpeechService:
             stt.on_fault = lambda reason: self._set_health("stt", "fault", reason)
             try:
                 stt.start()
-                self._set_health("stt", "ready")
+                unsupported = getattr(stt, "unsupported_phrases", None)
+                if unsupported:
+                    # Listening works, but part of the grammar can never fire.
+                    self._set_health("stt", "partial", f"unsupported_phrases: {unsupported}")
+                else:
+                    self._set_health("stt", "ready")
             except Exception as exc:  # noqa: BLE001
                 log.exception("speech: failed to start STT")
                 self._set_health("stt", "fault", f"start_failed: {exc}")
@@ -193,12 +238,12 @@ class SpeechService:
         interrupt: bool = False,
         ttl_seconds: Optional[float] = None,
     ) -> bool:
-        """Queue `text`. Returns False (and logs) if no TTS is available."""
+        """Queue `text`. Returns False (and logs) if no TTS is available or
+        the text was suppressed as a recent repeat."""
         if self._tts is None:
             log.warning("speech: TTS unavailable; not speaking %r", text)
             return False
-        self._tts.speak(text, priority=priority, interrupt=interrupt, ttl_seconds=ttl_seconds)
-        return True
+        return self._tts.speak(text, priority=priority, interrupt=interrupt, ttl_seconds=ttl_seconds)
 
     def stop_speaking(self):
         """Cancel current playback and everything queued."""
@@ -207,39 +252,76 @@ class SpeechService:
 
     # -- listening ------------------------------------------------------------
 
-    def on(self, command: str, handler: Callable[[], None]):
-        """Register a callback for a recognized grammar word/phrase.
+    def on(self, command: str, handler: Callable[[Command], None]):
+        """Register `handler(cmd: Command)` for a recognized grammar phrase.
         `command` must match an entry in the grammar list passed to configure()."""
         self._handlers[command.lower()].append(handler)
 
-    def _on_recognized(self, text: str, recognized_at: float):
+    def _on_recognized(self, text: str, recognized_at: float, source_mode: str):
         # Called on the STT thread: enqueue only, never run handlers here.
-        cmd = _Command(seq=next(self._seq), text=text, recognized_at=recognized_at)
+        if source_mode not in SOURCE_MODES:
+            log.error("speech: rejected command %r with invalid source_mode %r", text, source_mode)
+            return
+        pending = _Pending(seq=next(self._seq), text=text, recognized_at=recognized_at, source_mode=source_mode)
         try:
-            self._commands.put_nowait(cmd)
+            self._commands.put_nowait(pending)
         except queue.Full:
-            log.warning("speech: command queue full; dropped %r", text)
+            log.warning("speech: command queue full; dropped %r (seq %d, %s)", text, pending.seq, source_mode)
 
     def _dispatch_loop(self):
         while not self._closing.is_set():
             try:
-                cmd = self._commands.get(timeout=0.2)
+                pending = self._commands.get(timeout=0.2)
             except queue.Empty:
                 continue
-            age = time.monotonic() - cmd.recognized_at
-            if age > self._max_command_age_seconds:
-                log.warning("speech: dropped stale command %r (age %.2fs, seq %d)", cmd.text, age, cmd.seq)
+            cmd = Command(
+                text=pending.text,
+                seq=pending.seq,
+                recognized_at=pending.recognized_at,
+                dispatched_at=time.monotonic(),
+                source_mode=pending.source_mode,
+            )
+            tag = f"seq {cmd.seq}, {cmd.source_mode}, age {cmd.age_seconds:.2f}s"
+            if cmd.age_seconds > self._max_command_age_seconds:
+                log.warning("speech: dropped stale command %r (%s)", cmd.text, tag)
+                continue
+            if not self._arming_allows(cmd):
+                log.info("speech: rejected %r: not armed, say %r first (%s)", cmd.text, self._wake_phrase, tag)
                 continue
             handlers = self._handlers.get(cmd.text.lower(), [])
             if not handlers:
-                log.info("speech: unmatched utterance %r (seq %d)", cmd.text, cmd.seq)
+                if cmd.text.strip() == "[unk]":
+                    # Speech was heard but matched nothing in the grammar.
+                    log.info("speech: not_understood (%s)", tag)
+                else:
+                    log.info("speech: unmatched utterance %r (%s)", cmd.text, tag)
                 continue
-            log.info("speech: command %r (seq %d, age %.2fs)", cmd.text, cmd.seq, age)
+            log.info("speech: command %r (%s)", cmd.text, tag)
             for handler in handlers:
                 try:
-                    handler()
+                    handler(cmd)
                 except Exception:  # noqa: BLE001
-                    log.exception("speech: handler for %r raised", cmd.text)
+                    log.exception("speech: handler for %r raised (%s)", cmd.text, tag)
+
+    def _arming_allows(self, cmd: Command) -> bool:
+        """Wake-phrase gate. Runs on the dispatcher thread only."""
+        if self._wake_phrase is None:
+            return True
+        text = cmd.text.lower()
+        if text == self._wake_phrase:
+            self.armed_until = cmd.recognized_at + self._wake_window_seconds
+            log.info("speech: armed for %.1fs (seq %d)", self._wake_window_seconds, cmd.seq)
+            return True  # handlers on the wake phrase itself may e.g. chirp
+        if text in self._always_on:
+            return True
+        return cmd.recognized_at <= self.armed_until
+
+    def is_armed(self, now: Optional[float] = None) -> bool:
+        """True when a command recognized at `now` (STT clock, default:
+        time.monotonic()) would dispatch without the wake phrase."""
+        if self._wake_phrase is None:
+            return True
+        return (time.monotonic() if now is None else now) <= self.armed_until
 
     # -- lifecycle ------------------------------------------------------------
 

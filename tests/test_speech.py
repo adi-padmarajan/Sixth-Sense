@@ -1,11 +1,12 @@
 """Device-free checks for the speech package (fakes only: no models, no audio)."""
 
+import json
 import threading
 import time
 
 import pytest
 
-from speech import Priority, SpeechService
+from speech import Command, Priority, SpeechConfig, SpeechService
 from speech.fakes import FakeSTT, FakeTTS
 
 
@@ -66,7 +67,7 @@ def test_interrupt_keeps_queued_items_of_equal_or_higher_priority():
 
 
 def test_cancel_all_stops_playback_and_empties_queue():
-    tts = FakeTTS(play_seconds=0.3)
+    tts = FakeTTS(play_seconds=0.3, dedup_window_seconds=0)
     tts.start()
     tts.speak("a")
     tts.speak("b")
@@ -114,6 +115,53 @@ def test_playback_failure_reports_fault_and_keeps_worker_alive():
     tts.shutdown()
 
 
+class FakeClock:
+    def __init__(self, t=1000.0):
+        self.t = t
+
+    def __call__(self):
+        return self.t
+
+
+def test_repeated_text_is_suppressed_within_window():
+    clock = FakeClock()
+    tts = FakeTTS(dedup_window_seconds=2.0, clock=clock)
+    assert tts.speak("obstacle ahead") is True
+    assert tts.speak("obstacle ahead") is False          # repeat, suppressed
+    clock.t += 1.9
+    assert tts.speak("obstacle ahead") is False          # still inside window
+    clock.t += 0.2
+    assert tts.speak("obstacle ahead") is True           # window elapsed
+    assert tts.speak("different text") is True
+    tts.start()
+    assert tts.wait_idle(1.0)
+    assert tts.spoken == ["obstacle ahead", "obstacle ahead", "different text"]
+    tts.shutdown()
+
+
+def test_high_priority_and_interrupt_bypass_dedup():
+    clock = FakeClock()
+    tts = FakeTTS(dedup_window_seconds=2.0, clock=clock)
+    assert tts.speak("alert", Priority.HIGH) is True
+    assert tts.speak("alert", Priority.HIGH) is True
+    assert tts.speak("now", Priority.NORMAL, interrupt=True) is True
+    assert tts.speak("now", Priority.NORMAL, interrupt=True) is True
+    assert tts.speak("now") is False                     # plain repeat still suppressed
+    tts.start()
+    assert tts.wait_idle(1.0)
+    assert tts.spoken == ["alert", "alert", "now", "now"]
+    tts.shutdown()
+
+
+def test_dedup_can_be_disabled():
+    tts = FakeTTS(dedup_window_seconds=0)
+    assert tts.speak("x") and tts.speak("x")
+    tts.start()
+    assert tts.wait_idle(1.0)
+    assert tts.spoken == ["x", "x"]
+    tts.shutdown()
+
+
 # -- Service: dispatch --------------------------------------------------------
 
 def test_handler_runs_off_the_recognition_thread(service):
@@ -122,23 +170,32 @@ def test_handler_runs_off_the_recognition_thread(service):
     seen = {}
     done = threading.Event()
 
-    def handler():
+    def handler(cmd):
         seen["thread"] = threading.current_thread().name
+        seen["cmd"] = cmd
         done.set()
 
     service.on("mute", handler)
+    t0 = time.monotonic()
     assert stt.inject("mute")
     assert done.wait(1.0)
     assert seen["thread"] == "speech-dispatch"
     assert seen["thread"] != threading.current_thread().name
+    cmd = seen["cmd"]
+    assert isinstance(cmd, Command)
+    assert cmd.text == "mute" and cmd.seq == 0 and cmd.source_mode == "simulated"
+    assert t0 <= cmd.recognized_at <= cmd.dispatched_at
+    assert 0 <= cmd.age_seconds < 1.0
+    with pytest.raises(Exception):
+        cmd.text = "changed"  # frozen
 
 
 def test_command_matching_is_case_insensitive_and_supports_multiple_handlers(service):
     stt = FakeSTT()
     service.attach(tts=FakeTTS(), stt=stt)
     calls = []
-    service.on("Volume Up", lambda: calls.append("a"))
-    service.on("volume up", lambda: calls.append("b"))
+    service.on("Volume Up", lambda cmd: calls.append("a"))
+    service.on("volume up", lambda cmd: calls.append("b"))
     stt.inject("VOLUME UP")
     assert wait_for(lambda: len(calls) == 2)
     assert sorted(calls) == ["a", "b"]
@@ -146,9 +203,9 @@ def test_command_matching_is_case_insensitive_and_supports_multiple_handlers(ser
 
 def test_stale_command_is_dropped(service):
     stt = FakeSTT()
-    service.attach(tts=FakeTTS(), stt=stt, max_command_age_seconds=0.5)
+    service.attach(tts=FakeTTS(), stt=stt, config=SpeechConfig(max_command_age_seconds=0.5))
     calls = []
-    service.on("stop", lambda: calls.append(1))
+    service.on("stop", lambda cmd: calls.append(1))
     stt.inject("stop", recognized_at=time.monotonic() - 5.0)
     stt.inject("stop")  # fresh one still goes through
     assert wait_for(lambda: len(calls) == 1)
@@ -156,28 +213,33 @@ def test_stale_command_is_dropped(service):
     assert calls == [1]
 
 
-def test_unmatched_utterance_and_raising_handler_do_not_break_dispatch(service):
+def test_unmatched_utterance_and_raising_handler_do_not_break_dispatch(service, caplog):
     stt = FakeSTT()
     service.attach(tts=FakeTTS(), stt=stt)
     calls = []
+    caplog.set_level("INFO", logger="speech.service")
 
-    def bad():
+    def bad(cmd):
         raise ValueError("handler bug")
 
     service.on("describe", bad)
-    service.on("mute", lambda: calls.append(1))
+    service.on("mute", lambda cmd: calls.append(1))
     stt.inject("[unk]")
     stt.inject("volume up [unk]")
     stt.inject("describe")
     stt.inject("mute")
     assert wait_for(lambda: calls == [1])
+    messages = [r.getMessage() for r in caplog.records]
+    assert any(m.startswith("speech: not_understood") for m in messages)
+    assert any("unmatched utterance 'volume up [unk]'" in m for m in messages)
+    assert not any("unmatched utterance '[unk]'" in m for m in messages)
 
 
 def test_slow_handler_does_not_block_recognition(service):
     stt = FakeSTT()
     service.attach(tts=FakeTTS(), stt=stt)
     release = threading.Event()
-    service.on("describe", release.wait)
+    service.on("describe", lambda cmd: release.wait())
     stt.inject("describe")
     t0 = time.monotonic()
     assert stt.inject("mute")   # returns immediately; STT thread is not blocked
@@ -190,7 +252,7 @@ def test_slow_handler_does_not_block_recognition(service):
 def test_mic_is_muted_during_speech_and_for_echo_guard_after(service):
     stt = FakeSTT()
     tts = FakeTTS(play_seconds=0.1)
-    service.attach(tts=tts, stt=stt, echo_guard_seconds=0.1)
+    service.attach(tts=tts, stt=stt, config=SpeechConfig(echo_guard_seconds=0.1))
     service.speak("hello")
     assert wait_for(lambda: stt.muted)
     assert not stt.inject("mute")            # dropped at source while speaking
@@ -204,7 +266,7 @@ def test_mic_is_muted_during_speech_and_for_echo_guard_after(service):
 def test_back_to_back_speech_keeps_mic_muted_between_items(service):
     stt = FakeSTT()
     tts = FakeTTS(play_seconds=0.05)
-    service.attach(tts=tts, stt=stt, echo_guard_seconds=0.2)
+    service.attach(tts=tts, stt=stt, config=SpeechConfig(echo_guard_seconds=0.2))
     service.speak("one")
     service.speak("two")
     assert tts.wait_idle(1.0)
@@ -261,3 +323,130 @@ def test_stt_start_failure_keeps_tts_running(service):
     assert health["stt"] == "fault"
     assert service.health_reason["stt"].startswith("start_failed")
     assert service.speak("ok") is True
+
+
+def test_unsupported_grammar_phrases_surface_as_partial_health(service):
+    stt = FakeSTT(unsupported_phrases=["unmute"])
+    health = service.attach(tts=FakeTTS(), stt=stt)
+    assert health["stt"] == "partial"
+    assert "unmute" in service.health_reason["stt"]
+
+
+def test_source_mode_is_carried_from_backend_to_handler(service):
+    stt = FakeSTT(source_mode="replay")
+    service.attach(tts=FakeTTS(), stt=stt)
+    seen = []
+    service.on("describe", lambda cmd: seen.append(cmd.source_mode))
+    stt.inject("describe")
+    assert wait_for(lambda: seen == ["replay"])
+    with pytest.raises(ValueError):
+        FakeSTT(source_mode="live")  # fakes may not claim to be live
+
+
+def test_invalid_source_mode_is_rejected(service):
+    service.attach(tts=FakeTTS(), stt=FakeSTT())
+    calls = []
+    service.on("mute", lambda cmd: calls.append(cmd))
+    service._on_recognized("mute", time.monotonic(), "bogus")
+    service._on_recognized("mute", time.monotonic(), "simulated")
+    assert wait_for(lambda: len(calls) == 1)
+    time.sleep(0.05)
+    assert len(calls) == 1
+
+
+# -- Service: wake phrase -----------------------------------------------------
+
+def test_wake_phrase_gates_commands_within_window(service):
+    stt = FakeSTT(source_mode="replay")
+    service.attach(tts=FakeTTS(), stt=stt, config=SpeechConfig(wake_phrase="Hey Headband", wake_window_seconds=5.0))
+    calls = []
+    service.on("describe", lambda cmd: calls.append(("describe", cmd.recognized_at)))
+    service.on("hey headband", lambda cmd: calls.append(("wake", cmd.recognized_at)))
+    t = time.monotonic()
+    assert not service.is_armed(t)
+    stt.inject("describe", recognized_at=t)              # rejected: not armed
+    stt.inject("hey headband", recognized_at=t + 0.1)    # arms until t+5.1
+    stt.inject("describe", recognized_at=t + 2.0)        # ok
+    stt.inject("describe", recognized_at=t + 4.0)        # ok: window, not one-shot
+    stt.inject("describe", recognized_at=t + 5.2)        # rejected: expired
+    assert wait_for(lambda: len(calls) == 3)
+    time.sleep(0.05)
+    assert [c[0] for c in calls] == ["wake", "describe", "describe"]
+    assert service.is_armed(t + 5.0) and not service.is_armed(t + 5.2)
+
+
+def test_always_on_commands_bypass_wake_phrase(service):
+    stt = FakeSTT()
+    service.attach(tts=FakeTTS(), stt=stt, config=SpeechConfig(wake_phrase="hey headband", always_on_commands=["stop speaking"]))
+    calls = []
+    service.on("stop speaking", lambda cmd: calls.append("stop"))
+    service.on("mute", lambda cmd: calls.append("mute"))
+    stt.inject("mute")
+    stt.inject("stop speaking")
+    assert wait_for(lambda: calls == ["stop"])
+    time.sleep(0.05)
+    assert calls == ["stop"]
+
+
+def test_no_wake_phrase_means_always_armed(service):
+    stt = FakeSTT()
+    service.attach(tts=FakeTTS(), stt=stt)
+    assert service.is_armed()
+    calls = []
+    service.on("mute", lambda cmd: calls.append(1))
+    stt.inject("mute")
+    assert wait_for(lambda: calls == [1])
+
+
+# -- Config -------------------------------------------------------------------
+
+def test_config_loads_repo_file_and_resolves_relative_paths():
+    cfg = SpeechConfig.load("configs/speech.json", require_models=False)
+    assert cfg.schema_version == 1
+    assert cfg.grammar and "stop speaking" in cfg.grammar
+    assert cfg.tts_model_path.endswith("speech/models/en_US-lessac-medium.onnx")
+    assert cfg.always_on_commands == ("stop speaking",)
+    assert set(cfg.always_on_commands) <= set(cfg.grammar)
+
+
+def test_config_rejects_bad_values(tmp_path):
+    def write(**overrides):
+        data = {"schema_version": 1, "grammar": ["mute", "stop speaking"]}
+        data.update(overrides)
+        path = tmp_path / "speech.json"
+        path.write_text(json.dumps(data))
+        return str(path)
+
+    with pytest.raises(ValueError, match="schema_version"):
+        SpeechConfig.load(write(schema_version=2), require_models=False)
+    with pytest.raises(ValueError, match="unknown key"):
+        SpeechConfig.load(write(bogus=1), require_models=False)
+    with pytest.raises(ValueError, match="blocksize"):
+        SpeechConfig.load(write(blocksize=-1), require_models=False)
+    with pytest.raises(ValueError, match="echo_guard_seconds"):
+        SpeechConfig.load(write(echo_guard_seconds="fast"), require_models=False)
+    with pytest.raises(ValueError, match="wake_phrase"):
+        SpeechConfig.load(write(wake_phrase="hey headband"), require_models=False)
+    with pytest.raises(ValueError, match="always_on_commands"):
+        SpeechConfig.load(write(always_on_commands=["halt"]), require_models=False)
+    with pytest.raises(ValueError, match="duplicate"):
+        SpeechConfig.load(write(grammar=["mute", "Mute", "stop speaking"]), require_models=False)
+    with pytest.raises(ValueError, match="does not exist"):
+        SpeechConfig.load(write(tts_model_path="nope.onnx", stt_model_path="nope"), require_models=True)
+    with pytest.raises(ValueError, match="required for a real backend"):
+        SpeechConfig.load(write(), require_models=True)
+
+
+def test_config_normalises_phrases_and_is_frozen():
+    cfg = SpeechConfig(grammar=["Mute ", "Stop Speaking"], wake_phrase=" MUTE ")
+    assert cfg.grammar == ("mute", "stop speaking")
+    assert cfg.wake_phrase == "mute"
+    with pytest.raises(Exception):
+        cfg.blocksize = 1
+    assert cfg.replace(blocksize=8000).blocksize == 8000
+
+
+def test_configure_requires_model_paths(service):
+    with pytest.raises(ValueError, match="required for a real backend"):
+        service.configure(SpeechConfig())
+    assert service.health == {"tts": "unavailable", "stt": "unavailable"}

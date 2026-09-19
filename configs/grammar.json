@@ -1,10 +1,14 @@
 [
+  "what's in front of me",
+  "describe",
+  "device status",
+  "stop speaking",
+  "pause feedback",
+  "resume feedback",
+  "increase sensitivity",
+  "decrease sensitivity",
   "volume up",
   "volume down",
   "mute",
-  "unmute",
-  "describe",
-  "stop",
-  "yes",
-  "no"
+  "sound on"
 ]
