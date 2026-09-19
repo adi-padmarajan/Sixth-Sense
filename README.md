@@ -13,7 +13,8 @@ which library is doing the talking or listening.
 ```bash
 pip install -r requirements.txt
 bash scripts/fetch_models.sh
-python example_usage.py
+python example-usage.py
+python -m pytest tests   # device-free checks using speech.fakes
 ```
 
 You should hear "system ready" and then be able to say any word from
@@ -29,7 +30,7 @@ speech.on("describe", lambda: run_cv_description())
 ```
 
 That's the whole contract. `speech` is a singleton configured once at
-startup (see `example_usage.py`); everything else just calls `.speak()`
+startup (see `example-usage.py`); everything else just calls `.speak()`
 or registers a `.on()` handler.
 
 - **Priority + interrupt**: `Priority.HIGH` with `interrupt=True` cuts off
@@ -37,6 +38,21 @@ or registers a `.on()` handler.
   speech. Use this for time-critical alerts, not routine narration —
   reserve `Priority.LOW` for ambient scene descriptions from the CV
   stretch goal so they never block an obstacle warning.
+- **Stop / expiry**: `speech.stop_speaking()` cancels current and queued
+  speech; `speak(..., ttl_seconds=3)` drops a message that hasn't started
+  playing by then (use it for scene descriptions that go stale).
+- **Handlers run on a dispatcher thread**, not the recognition thread, so
+  a slow handler doesn't stop listening. Commands older than
+  `max_command_age_seconds` (default 2 s) by the time they're dispatched
+  are discarded, and unmatched utterances are logged, not silently dropped.
+- **Health**: `speech.health` is `{"tts": ..., "stt": ...}` with values
+  `ready`, `fault`, or `unavailable`; `speech.health_reason` carries the
+  reason. A backend that fails to load or errors during playback/recognition
+  is reported here instead of taking the other side down. `speak()` returns
+  `False` when no TTS is available.
+- **No hardware needed for tests**: `speech.fakes.FakeTTS` / `FakeSTT`
+  implement the same interfaces; wire them with
+  `speech.attach(tts=FakeTTS(), stt=FakeSTT())`.
 - **Grammar-limited STT**: `configs/grammar.json` is the full list of
   recognizable words/phrases. Keeping it small and fixed is what makes
   Vosk fast and reliable here — add to it as you add commands, but don't
@@ -57,7 +73,7 @@ the plan significantly either way.
 ### Extending later
 
 If sensors/haptics end up in a different process or language than this
-module, don't refactor `tts.py`/`stt.py` — add a transport layer inside
-`service.py` (see `_maybe_start_ipc_server` for the placeholder) so the
+module, don't refactor `tts.py`/`stt.py` — add a transport layer in front
+of `SpeechService` (e.g. newline-delimited JSON over a local socket) so the
 rest of the project keeps calling `speech.speak()` / `speech.on()`
-exactly as before.
+exactly as before. Don't build it until the process split is known.

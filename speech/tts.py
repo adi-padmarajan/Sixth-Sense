@@ -1,19 +1,25 @@
 """
-Piper-based text-to-speech with a priority queue, so urgent (e.g. haptic-
-critical) announcements can interrupt lower-priority narration instead of
-waiting behind it.
+Text-to-speech with a priority queue, so urgent announcements can interrupt
+lower-priority narration instead of waiting behind it.
+
+`QueuedTTS` owns the queue, worker thread, interrupt/cancel logic, expiry,
+and fault reporting. It knows nothing about audio libraries -- subclasses
+implement `_synthesize_and_play()`. `PiperTTS` is the real backend;
+`speech.fakes.FakeTTS` is the device-free one used by tests.
 """
 
 from __future__ import annotations
 
+import itertools
+import logging
 import queue
 import threading
+import time
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
-import sounddevice as sd
-from piper import PiperVoice
+log = logging.getLogger(__name__)
 
 
 class Priority(IntEnum):
@@ -24,11 +30,208 @@ class Priority(IntEnum):
 
 @dataclass(order=True)
 class _SpeechItem:
+    # PriorityQueue pops the smallest item first, so sort_key is the
+    # negated priority. `seq` breaks ties so equal-priority items are
+    # spoken in the order they were queued (heapq alone isn't stable).
     sort_key: int
+    seq: int
     text: str = field(compare=False)
+    expires_at: Optional[float] = field(compare=False, default=None)
+
+    @property
+    def priority(self) -> int:
+        return -self.sort_key
 
 
-class PiperTTS:
+class QueuedTTS:
+    """Priority-queued speech worker. Subclass and implement
+    `_synthesize_and_play(text, should_stop)`.
+
+    Thread model: `speak()` / `cancel_all()` may be called from any thread.
+    `_synthesize_and_play` runs on the single worker thread, as do the
+    `on_speak_start` / `on_speak_end` / `on_fault` callbacks.
+    """
+
+    def __init__(
+        self,
+        on_speak_start: Optional[Callable[[], None]] = None,
+        on_speak_end: Optional[Callable[[], None]] = None,
+        on_fault: Optional[Callable[[str], None]] = None,
+        max_queue: int = 16,
+    ):
+        # Fired around each item's playback so a caller (SpeechService) can
+        # mute the STT mic while the speaker is active. Kept as plain
+        # callbacks so this module doesn't need to know stt.py exists.
+        self.on_speak_start = on_speak_start
+        self.on_speak_end = on_speak_end
+        # Fired when playback of an item fails. The worker keeps running;
+        # this exists so the caller can surface degraded health.
+        self.on_fault = on_fault
+        self.fault_reason: Optional[str] = None
+
+        self._max_queue = max_queue
+        self._queue: "queue.PriorityQueue[_SpeechItem]" = queue.PriorityQueue()
+        self._seq = itertools.count()
+        # Guards queue mutation from speak()/cancel_all() and the
+        # interrupt bookkeeping below.
+        self._lock = threading.Lock()
+        self._stop_current = threading.Event()
+        # Set by an interrupting speak(): any item popped afterwards with a
+        # lower priority than this is discarded. Closes the window where
+        # the worker has already popped a low-priority item but hasn't
+        # started playing it, so `_drop_below` couldn't see it.
+        self._interrupt_floor: Optional[int] = None
+        self._current: Optional[_SpeechItem] = None
+        self._shutdown = threading.Event()
+        self._worker: Optional[threading.Thread] = None
+
+    # -- public API ---------------------------------------------------------
+
+    def start(self):
+        if self._worker is not None:
+            return
+        self._worker = threading.Thread(target=self._run, name="tts-worker", daemon=True)
+        self._worker.start()
+
+    def speak(
+        self,
+        text: str,
+        priority: Priority = Priority.NORMAL,
+        interrupt: bool = False,
+        ttl_seconds: Optional[float] = None,
+    ):
+        """Queue text for speech.
+
+        Higher `priority` values are spoken first. If `interrupt` is set,
+        whatever is currently playing is cut off and any queued items of
+        lower priority than this one are dropped -- use this for
+        time-critical alerts, not for routine narration.
+
+        `ttl_seconds` discards the item if it hasn't started playing by
+        then; use it for scene descriptions that go stale.
+        """
+        expires_at = time.monotonic() + ttl_seconds if ttl_seconds is not None else None
+        item = _SpeechItem(
+            sort_key=-int(priority), seq=next(self._seq), text=text, expires_at=expires_at
+        )
+        with self._lock:
+            if interrupt:
+                self._stop_current.set()
+                self._interrupt_floor = int(priority)
+                self._drop_below(priority)
+            self._put_bounded(item)
+
+    def cancel_all(self):
+        """Cut off current playback and drop everything queued."""
+        with self._lock:
+            self._stop_current.set()
+            self._interrupt_floor = None
+            dropped = self._drain()
+        if dropped:
+            log.info("tts: cancelled %d queued item(s)", len(dropped))
+
+    @property
+    def busy(self) -> bool:
+        return self._current is not None or not self._queue.empty()
+
+    def wait_idle(self, timeout: float) -> bool:
+        """Block until nothing is queued or playing. Returns False on timeout."""
+        deadline = time.monotonic() + timeout
+        while self.busy:
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.005)
+        return True
+
+    def shutdown(self):
+        self._shutdown.set()
+        self.cancel_all()
+        if self._worker is not None:
+            self._worker.join(timeout=2)
+
+    # -- subclass hook --------------------------------------------------------
+
+    def _synthesize_and_play(self, text: str, should_stop: Callable[[], bool]):
+        """Synthesize and play `text`. Poll `should_stop()` between small
+        blocks of audio and return early when it is true."""
+        raise NotImplementedError
+
+    # -- internals ------------------------------------------------------------
+
+    def _drain(self) -> List[_SpeechItem]:
+        items = []
+        while True:
+            try:
+                items.append(self._queue.get_nowait())
+            except queue.Empty:
+                return items
+
+    def _drop_below(self, priority: Priority):
+        for item in self._drain():
+            if item.priority >= int(priority):
+                self._queue.put(item)
+            else:
+                log.info("tts: dropped queued %r (priority %d < %d)", item.text, item.priority, int(priority))
+
+    def _put_bounded(self, item: _SpeechItem):
+        if self._queue.qsize() < self._max_queue:
+            self._queue.put(item)
+            return
+        # Queue full: keep the highest-priority / oldest items, drop the
+        # single lowest-priority newest one (which may be the new item).
+        items = self._drain()
+        items.append(item)
+        items.sort()
+        dropped = items.pop()
+        for keep in items:
+            self._queue.put(keep)
+        log.warning("tts: queue full (%d); dropped %r", self._max_queue, dropped.text)
+
+    def _run(self):
+        while not self._shutdown.is_set():
+            try:
+                item = self._queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+
+            with self._lock:
+                floor = self._interrupt_floor
+                self._interrupt_floor = None
+                self._stop_current.clear()
+                if floor is not None and item.priority < floor:
+                    log.info("tts: dropped %r (popped during interrupt)", item.text)
+                    continue
+                if item.expires_at is not None and time.monotonic() > item.expires_at:
+                    log.info("tts: dropped %r (expired before playback)", item.text)
+                    continue
+                self._current = item
+
+            if self.on_speak_start:
+                self.on_speak_start()
+            try:
+                self._synthesize_and_play(item.text, self._stop_current.is_set)
+            except Exception as exc:  # noqa: BLE001 - keep the worker alive
+                log.exception("tts: playback failed for %r", item.text)
+                self._report_fault(f"playback_failed: {exc}")
+                # Avoid spinning if the audio device is gone for good.
+                self._shutdown.wait(0.5)
+            finally:
+                self._current = None
+                if self.on_speak_end:
+                    self.on_speak_end()
+
+    def _report_fault(self, reason: str):
+        self.fault_reason = reason
+        if self.on_fault:
+            try:
+                self.on_fault(reason)
+            except Exception:  # noqa: BLE001
+                log.exception("tts: on_fault callback raised")
+
+
+class PiperTTS(QueuedTTS):
+    """Piper (ONNX) synthesis played through sounddevice."""
+
     def __init__(
         self,
         model_path: str,
@@ -37,82 +240,51 @@ class PiperTTS:
         device: Optional[int] = None,
         on_speak_start: Optional[Callable[[], None]] = None,
         on_speak_end: Optional[Callable[[], None]] = None,
+        on_fault: Optional[Callable[[str], None]] = None,
+        write_block_samples: int = 1024,
+        max_queue: int = 16,
     ):
+        # Imported here so the package (and its fakes/tests) can be used on
+        # machines without piper or PortAudio installed.
+        import sounddevice as sd
+        from piper import PiperVoice
+
+        super().__init__(
+            on_speak_start=on_speak_start,
+            on_speak_end=on_speak_end,
+            on_fault=on_fault,
+            max_queue=max_queue,
+        )
+        self._sd = sd
         self.voice = PiperVoice.load(model_path, config_path=config_path)
         # Piper voices carry their own sample rate in the config; fall back
         # to a caller-supplied value only if that isn't available.
         self.samplerate = getattr(getattr(self.voice, "config", None), "sample_rate", None) or samplerate or 22050
         self.device = device
-        # Fired around each item's playback so a caller (SpeechService) can
-        # mute the STT mic while the speaker is active, to stop it hearing
-        # its own output. Kept as plain callbacks so tts.py doesn't need to
-        # know stt.py exists.
-        self.on_speak_start = on_speak_start
-        self.on_speak_end = on_speak_end
+        # Audio is written in blocks this size so an interrupt lands within
+        # ~write_block_samples / samplerate seconds instead of waiting for
+        # the whole sentence Piper hands back.
+        self.write_block_samples = write_block_samples
 
-        self._queue: "queue.PriorityQueue[_SpeechItem]" = queue.PriorityQueue()
-        self._stop_current = threading.Event()
-        self._shutdown = threading.Event()
-        self._worker = threading.Thread(target=self._run, daemon=True)
-        self._worker.start()
-
-    def speak(self, text: str, priority: Priority = Priority.NORMAL, interrupt: bool = False):
-        """Queue text for speech.
-
-        Higher `priority` values are spoken first. If `interrupt` is set,
-        whatever is currently playing is cut off immediately and any
-        queued items of lower priority than this one are dropped -- use
-        this for time-critical alerts (e.g. an obstacle warning), not for
-        routine narration.
-        """
-        if interrupt:
-            self._stop_current.set()
-            self._drop_below(priority)
-        # PriorityQueue pops the smallest item first, so store the negative
-        # priority to make HIGH come out before LOW.
-        self._queue.put(_SpeechItem(sort_key=-int(priority), text=text))
-
-    def _drop_below(self, priority: Priority):
-        keep = []
-        while not self._queue.empty():
-            item = self._queue.get_nowait()
-            if -item.sort_key >= int(priority):
-                keep.append(item)
-        for item in keep:
-            self._queue.put(item)
-
-    def _run(self):
-        while not self._shutdown.is_set():
-            try:
-                item = self._queue.get(timeout=0.2)
-            except queue.Empty:
-                continue
-            self._stop_current.clear()
-            if self.on_speak_start:
-                self.on_speak_start()
-            try:
-                self._synthesize_and_play(item.text)
-            finally:
-                if self.on_speak_end:
-                    self.on_speak_end()
-
-    def _synthesize_and_play(self, text: str):
-        stream = sd.OutputStream(
+    def _synthesize_and_play(self, text: str, should_stop: Callable[[], bool]):
+        stream = self._sd.OutputStream(
             samplerate=self.samplerate, channels=1, dtype="int16", device=self.device
         )
         stream.start()
+        stopped_early = False
         try:
             # voice.synthesize() yields one AudioChunk per sentence, not raw
             # bytes -- pull the int16 samples off it before writing.
             for audio_chunk in self.voice.synthesize(text):
-                if self._stop_current.is_set():
-                    break
-                stream.write(audio_chunk.audio_int16_array)
+                samples = audio_chunk.audio_int16_array
+                for start in range(0, len(samples), self.write_block_samples):
+                    if should_stop():
+                        stopped_early = True
+                        return
+                    stream.write(samples[start : start + self.write_block_samples])
         finally:
-            stream.stop()
+            if stopped_early:
+                stream.abort()  # don't drain what's buffered
+            else:
+                stream.stop()   # waits for buffered audio to finish
             stream.close()
-
-    def shutdown(self):
-        self._shutdown.set()
-        self._stop_current.set()
-        self._worker.join(timeout=1)

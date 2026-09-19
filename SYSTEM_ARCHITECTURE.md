@@ -155,13 +155,17 @@ Rules baked into this flow:
 | --- | --- | --- |
 | Main thread | YOLO loop (`model.track(stream=True)` + `cv2.imshow`) | Network, TTS, STT |
 | Vosk worker | `VoskSTT._run` | Anything but the audio queue |
-| Piper worker | `PiperTTS._run` | Network |
+| Piper worker | `QueuedTTS._run` | Network |
+| Speech dispatcher | `SpeechService._dispatch_loop` runs `speech.on(...)` handlers | Long blocking work -- it delays later commands, though recognition keeps going |
 | Sounddevice callbacks | `VoskSTT._audio_callback` / recorder | Anything (real-time audio thread) |
 | Assistant thread (per question) | `omni` handler spawned by `SpeechService` dispatch | — this is the only thread allowed to wait on the cloud |
 
-The `speech.on("describe", …)` handler runs on the **Vosk worker thread**.
-It must return immediately — spawn the assistant thread, don't do the OMNI
-call inline, or voice recognition freezes for the duration of the request.
+The `speech.on("describe", …)` handler runs on the **speech dispatcher
+thread**, not the Vosk worker, so a slow handler no longer freezes
+recognition. It should still return promptly — spawn the assistant thread
+rather than doing the OMNI call inline — because commands recognized while
+a handler is running queue up behind it and are discarded once older than
+`max_command_age_seconds` (default 2 s).
 
 ## 6. Data passed between components
 
