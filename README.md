@@ -297,9 +297,11 @@ speech/                  Piper TTS + Vosk STT service, fakes, downloaded models 
 omni/                    assistant client, scene request builder, fake, vendor CLIs, audit ledger
 sensor_python/           Python sensor reference: SensorDriver protocol, pigpio driver, fake
 firmware/                C firmware for the QNX sensor/haptic loop (scaffold, empty)
-configs/                 speech.json · assistant.json · grammar.json (all schema_version 1)
+controller_link/         laptop-side client for the QNX controller's telemetry/config link, fake server, tests
+configs/                 speech.json · assistant.json · grammar.json · controller_link.json (all schema_version 1)
 scripts/                 fetch_models.sh · check_capture.py · summarize_latency.py
 tests/                   orchestrator, speech, and latency tests (+ fixtures)
+docs/                    controller_link_protocol.md -- wire spec for the QNX-side controller server
 SYSTEM_ARCHITECTURE.md   companion-host software architecture in depth
 proj_spec.md             original project spec and open questions
 AGENTS.md / CLAUDE.md    engineering guidance for contributors and coding agents

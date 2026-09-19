@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "host": "192.0.2.10",
+  "port": 8765,
+  "source_id": "companion-host",
+  "connect_timeout_s": 3.0,
+  "read_idle_timeout_s": 1.0,
+  "reconnect_backoff_min_s": 0.5,
+  "reconnect_backoff_max_s": 5.0,
+  "stale_after_ms": 1000,
+  "default_config_request_ttl_ms": 1500
+}
