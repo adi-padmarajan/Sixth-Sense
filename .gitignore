@@ -28,6 +28,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Obsidian
+.obsidian/
+
 # Logs
 *.log
 
