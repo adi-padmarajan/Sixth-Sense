@@ -1,17 +1,21 @@
 from ultralytics import YOLO
+import cv2
 
-model = YOLO("yolo26n.pt")
-results = model.predict(
+model = YOLO("yolo26n-objv1-150.pt")
+
+results = model.track(
     source=0,
     stream=True,
-    show=True
+    persist=True,
+    conf=0.35
 )
 
 for result in results:
+    frame = result.plot()
 
-    for box in result.boxes:
+    cv2.imshow("YOLO Live Tracking", frame)
 
-        name = model.names[int(box.cls)]
-        conf = float(box.conf)
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
 
-        print(f"{name}: {conf:.2f}")
+cv2.destroyAllWindows()
