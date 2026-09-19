@@ -2,14 +2,6 @@
 Piper-based text-to-speech with a priority queue, so urgent (e.g. haptic-
 critical) announcements can interrupt lower-priority narration instead of
 waiting behind it.
-
-NOTE ON THE PIPER API: piper-tts's Python surface has shifted across
-releases. This wraps PiperVoice.synthesize_stream_raw(), which is the
-current streaming API as of piper-tts 1.x. Check `pip show piper-tts`
-and the project README/examples against your installed version before
-relying on this in a demo -- if the method name differs, only
-`_synthesize_and_play()` below needs to change; the queueing, threading,
-and interrupt logic are independent of the exact Piper call.
 """
 
 from __future__ import annotations
@@ -18,9 +10,8 @@ import queue
 import threading
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Optional
+from typing import Callable, Optional
 
-import numpy as np
 import sounddevice as sd
 from piper import PiperVoice
 
@@ -44,12 +35,20 @@ class PiperTTS:
         config_path: Optional[str] = None,
         samplerate: Optional[int] = None,
         device: Optional[int] = None,
+        on_speak_start: Optional[Callable[[], None]] = None,
+        on_speak_end: Optional[Callable[[], None]] = None,
     ):
         self.voice = PiperVoice.load(model_path, config_path=config_path)
         # Piper voices carry their own sample rate in the config; fall back
         # to a caller-supplied value only if that isn't available.
         self.samplerate = getattr(getattr(self.voice, "config", None), "sample_rate", None) or samplerate or 22050
         self.device = device
+        # Fired around each item's playback so a caller (SpeechService) can
+        # mute the STT mic while the speaker is active, to stop it hearing
+        # its own output. Kept as plain callbacks so tts.py doesn't need to
+        # know stt.py exists.
+        self.on_speak_start = on_speak_start
+        self.on_speak_end = on_speak_end
 
         self._queue: "queue.PriorityQueue[_SpeechItem]" = queue.PriorityQueue()
         self._stop_current = threading.Event()
@@ -89,7 +88,13 @@ class PiperTTS:
             except queue.Empty:
                 continue
             self._stop_current.clear()
-            self._synthesize_and_play(item.text)
+            if self.on_speak_start:
+                self.on_speak_start()
+            try:
+                self._synthesize_and_play(item.text)
+            finally:
+                if self.on_speak_end:
+                    self.on_speak_end()
 
     def _synthesize_and_play(self, text: str):
         stream = sd.OutputStream(
@@ -97,11 +102,12 @@ class PiperTTS:
         )
         stream.start()
         try:
-            for audio_bytes in self.voice.synthesize_stream_raw(text):
+            # voice.synthesize() yields one AudioChunk per sentence, not raw
+            # bytes -- pull the int16 samples off it before writing.
+            for audio_chunk in self.voice.synthesize(text):
                 if self._stop_current.is_set():
                     break
-                samples = np.frombuffer(audio_bytes, dtype=np.int16)
-                stream.write(samples)
+                stream.write(audio_chunk.audio_int16_array)
         finally:
             stream.stop()
             stream.close()
