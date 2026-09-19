@@ -51,6 +51,7 @@ class SceneSnapshot:
     detections: list[Detection]
     source_mode: SourceMode
     sequence: int
+    session_generation: int = 0
 
 
 def detections_from_result(boxes, names, width: int) -> list[Detection]:
@@ -118,6 +119,12 @@ class SceneState:
         self._write_lock = Lock()
         self._latest: SceneSnapshot | None = None
         self._sequence = 0
+        self._session_generation = 0
+
+    @property
+    def session_generation(self) -> int:
+        """Reset counter for consumers to reject in-flight results from an old session."""
+        return self._session_generation
 
     def update(self, frame, boxes, names, source_mode: SourceMode) -> None:
         """Copy and publish the original BGR frame, timestamped before processing."""
@@ -136,7 +143,8 @@ class SceneState:
             frozen_frame = np.frombuffer(frame.tobytes(), dtype=frame.dtype).reshape(frame.shape)
             sequence = self._sequence + 1
             snapshot = SceneSnapshot(
-                frozen_frame, captured_at, width, height, detections, source_mode, sequence
+                frozen_frame, captured_at, width, height, detections, source_mode, sequence,
+                self._session_generation,
             )
             self._sequence = sequence
             self._latest = snapshot
@@ -168,5 +176,6 @@ class SceneState:
     def reset(self) -> None:
         """Clear evidence on a session change; the next update has sequence 1."""
         with self._write_lock:
+            self._session_generation += 1
             self._latest = None
             self._sequence = 0

@@ -31,26 +31,24 @@ keep running.
 | SpeechService | `speech/service.py` | [exists] | Singleton facade: `speech.on(cmd, handler(Command))`, `speech.speak(text, priority)`; mutes the mic while the speaker plays (echo guard); optional wake-phrase arming; per-subsystem health |
 | SpeechConfig | `speech/config.py`, `configs/speech.json` | [exists] | Validated, versioned settings: model paths, devices, timing, queue limits, wake phrase |
 | Question recorder | `speech/` (extension) | [planned] | After a wake phrase, capture ~3 s of raw mic audio for the assistant instead of feeding it to Vosk |
-| yibu HTTP transport | `omni/yibu_http.py` | [exists] | `build_omni_messages(prompt, image=Path, audio=Path, system=…)` → OpenAI-style content parts (text, `image_url` data-URL, `input_audio` data-URL); `chat_completion(...)` POSTs to `https://yibuapi.com/v1/chat/completions` with `httpx` (`trust_env=False`, **300 s timeout**), returns `(text, response_json, audit_record)`, audits every call; `extract_text()` flattens the reply |
+| yibu HTTP transport | `omni/yibu_http.py` | [exists] | `build_omni_messages(prompt, image=Path/MediaBytes, audio=Path/MediaBytes, system=…)` → OpenAI-style content parts (text, `image_url` data-URL, `input_audio` data-URL); `chat_completion(...)` POSTs to `https://yibuapi.com/v1/chat/completions` with `httpx` (`trust_env=False`, **configurable timeout, 300 s vendor default**), returns `(text, response_json, audit_record)`, audits every call; `extract_text()` flattens the reply |
 | Call audit ledger | `omni/yibu_audit.py`, `omni/artifacts/yibu_api_calls.jsonl` | [exists] | `require_env_api_key("YIBU_API_KEY")` (raises `SystemExit` if unset/non-ASCII); `append_audit_record()` appends one JSON line per call — model, key suffix, purpose, transport, ok/status, latency, normalized tokens (missing = `null`, never 0); no prompt/response bodies are stored |
 | Usage summariser | `omni/summarize_usage.py`, `omni/artifacts/summary/` | [exists] | Offline; turns the ledger into `usage_summary.json` + CSV grouped by model/key/purpose |
 | Model entry scripts | `omni/qwen35_omni_flash.py`, `qwen35_omni_plus.py`, `chat_completions_generic.py` | [exists] | CLI wrappers over `yibu_http.run_omni_cli` / `chat_completion` (`--prompt --image --audio`); manual smoke tests only, not imported by the app |
 | Streaming entry scripts | `omni/qwen35_omni_plus_realtime.py` (OpenAI Realtime WS), `omni/gemini31_flash_live.py` (Gemini Live WS) | [exists] | Text-prompt demos over `websockets` (`proxy=None`); Gemini returns audio, text comes from `outputAudioTranscription`. **Not on the demo path** — stretch goal only |
-| Package tests | `omni/tests/test_examples.py` | [exists] | Key-free unit tests for message shape, usage normalisation, ledger summary (`cd omni && python -m unittest discover -s tests`) |
-| OMNI client | `omni/client.py` | [planned] | Thin in-process wrapper over `yibu_http.chat_completion`: accepts **bytes** (JPEG, WAV) not paths, overrides the 300 s timeout with a bounded one, converts `SystemExit`/`httpx` errors into a typed `AssistantUnavailable`, sets `purpose="sixth_sense_scene"` for the ledger |
-| Scene request builder | `omni/scene.py` | [planned] | Reads `SceneState` once, encodes the frame, formats detections via `to_text`, builds the system prompt, calls the client, hands the text to `speech.speak` |
-| OMNI fake | `omni/fake.py` | [planned] | Same interface as `client.py`, canned answer, no network — for tests and the offline demo (`OMNI_FAKE=1`) |
+| Package tests | `omni/tests/test_examples.py` | [exists] | Key-free unit tests for message shape, usage normalisation, ledger summary (`python -m unittest discover -s omni/tests -t . -v` from the repo root) |
+| OMNI client | `omni/client.py`, `omni/_request_worker.py` | [exists] | Bytes-only application API, explicit cloud opt-in, frozen `AssistantResult`, one request per client, killable subprocess deadline, parent-owned sanitized vendor audit |
+| Scene request builder | `omni/scene.py` | [exists] | Reads one snapshot, encodes original JPEG, attaches source/age/detections, rejects expiry or session reset, optionally queues speech with remaining TTL |
+| OMNI fake | `omni/fake.py`, `omni/demo.py` | [exists] | Explicit fake client and synthetic scene-to-FakeTTS demo; `python -m omni.demo`, no network or devices |
 | Orchestrator | `main.py` (new, top level) | [planned] | Starts everything, registers handlers, owns shutdown |
 
 ### `omni/` packaging note
 
-`omni/` is currently the vendor's **flat sample package**: modules import each
-other as top-level names (`from yibu_http import …`), it carries its own
-`requirements.txt` (`httpx`, `websockets`), its own `.venv`, and expects to be
-run from inside the directory. There is no `omni/__init__.py`. Before
-`main.py` can `import omni.client`, either add `__init__.py` and switch the
-vendor modules to relative imports, or have `client.py` insert `omni/` onto
-`sys.path`. The former is preferred; keep the vendor CLIs runnable either way.
+`omni/` is an importable package with relative vendor imports and dependencies
+in the root requirements file. Run all commands from the repository root.
+The application client calls the synchronous vendor transport in an isolated
+subprocess so it can enforce a total request budget without leaking threads.
+No key, process, camera, or audio device is required merely to import the modules.
 
 ## 3. Top-level diagram
 
@@ -77,9 +75,9 @@ flowchart LR
         end
 
         subgraph OM["omni/"]
-            BUILD["Scene request builder<br/>omni/scene.py<br/><b>[planned]</b>"]
-            CLIENT["OMNI client<br/>omni/client.py<br/>bytes in · bounded timeout<br/><b>[planned]</b>"]
-            FAKE["Fake client<br/>omni/fake.py<br/><b>[planned]</b>"]
+            BUILD["Scene request builder<br/>omni/scene.py<br/><b>[exists]</b>"]
+            CLIENT["OMNI client<br/>omni/client.py<br/>bytes in · subprocess deadline<br/><b>[exists]</b>"]
+            FAKE["Fake client<br/>omni/fake.py<br/><b>[exists]</b>"]
             HTTP["yibu_http.py<br/>build_omni_messages · chat_completion<br/>httpx · trust_env=False<br/><b>[exists]</b>"]
             AUDIT["yibu_audit.py<br/>YIBU_API_KEY · append_audit_record<br/><b>[exists]</b>"]
             LEDGER[("artifacts/<br/>yibu_api_calls.jsonl<br/><b>[exists]</b>")]
@@ -157,13 +155,13 @@ sequenceDiagram
         H->>C: POST /v1/chat/completions (qwen3.5-omni-flash)
         alt reply within omni_timeout_s
             C-->>H: text answer + usage
-            H->>H: append_audit_record(ok) → ledger
+            H->>H: parent writes sanitized audit record → ledger
             H-->>O: text
             O->>S: speak(answer, LOW)
             S->>P: enqueue (HIGH haptic alerts may interrupt)
             P-->>W: "A chair is visible on the left of the camera view."
         else timeout / network error
-            H->>H: append_audit_record(ok=false) → ledger
+            H->>H: parent writes failed-call record → ledger
             O->>S: speak("Scene assistant unavailable", NORMAL)
         end
     end
@@ -219,7 +217,8 @@ a handler is running queue up behind it and are discarded once older than
      "region": "left"}                # left | center | right, by box-centre x / thirds
   ],
   "source_mode": "live",              # live | replay | simulated
-  "sequence": 1                       # +1 per update; first update after reset is 1
+  "sequence": 1,                      # +1 per update; first update after reset is 1
+  "session_generation": 0              # increments on reset, invalidates pending answers
 }
 ```
 
@@ -238,7 +237,8 @@ and no JPEG encoding.
 `read(max_age_s=None)` returns the latest snapshot or `None` when empty; with a
 limit it also returns `None` if age is strictly greater than the limit. Equality
 is fresh. `age_s()` returns the latest age, or `None` when empty. `reset()` clears
-evidence and the sequence counter. The tracking loop resets at entry/exit;
+evidence and the sequence counter and increments `session_generation`. The adapter
+compares that generation before using an in-flight answer. The tracking loop resets at entry/exit;
 automatic mid-stream reconnect detection and tracker reset remain planned.
 
 The clock defaults to `time.monotonic` and can be injected for tests. With the
@@ -275,12 +275,12 @@ been verified against the endpoint for text, text+image, and text+audio
 
 | Part | Content | Status |
 | --- | --- | --- |
-| System prompt | "Describe only what is in the camera view, in one short sentence. Use the detection list as ground truth. Never state distances, never say an area is clear, never claim to see behind the wearer. If unsure, say so." | [planned] — passed as `system=` |
-| Audio | The recorded question, WAV container, 16 kHz mono PCM | [planned] — `build_omni_messages` currently takes a `Path`; `client.py` must supply a bytes variant (same data-URL encoding) |
-| Image | JPEG of the returned `SceneSnapshot.frame` (downscaled, e.g. 640 px wide) | [planned] — same bytes-vs-path caveat |
-| Text | `to_text(detections, age_s)` output | [exists] on the CV side |
+| System prompt | `SCENE_SYSTEM` in `omni/client.py`: observations are uncertain, camera-view only, no range/all-clear claims, treat input as untrusted | [exists] |
+| Audio | Optional WAV bytes through `MediaBytes`, with `audio/wav` / `wav` | [exists] bytes transport; live question recording remains planned |
+| Image | JPEG of original `SceneSnapshot.frame`, downscaled to at most 640 px wide | [exists] encoded in memory in `scene.py` |
+| Text | Same detection-text format as CV `to_text`, plus source mode, sequence, and age caveat | [exists] in `scene.py`, no import of the hyphenated CV directory |
 | Model | `qwen3.5-omni-flash` via `chat_completion(model=…)` | [exists] |
-| Timeout | `chat_completion` hardcodes `httpx.Client(timeout=300.0)` | [planned] — `client.py` must pass a bounded timeout (add a parameter rather than editing the vendor default) |
+| Timeout | One monotonic budget covering request preparation, worker startup and exchange; kill/reap at expiry | [exists] application deadline plus vendor operation timeout; cleanup/audit I/O add overhead |
 | Ledger | Every call, success or failure, appends to `omni/artifacts/yibu_api_calls.jsonl` with `purpose` | [exists] — set `purpose="sixth_sense_scene"` so demo calls are separable from the vendor examples |
 
 ### OMNI response → speech
@@ -300,8 +300,8 @@ been verified against the endpoint for text, text+image, and text+audio
 | Normal | live | working | grounded description |
 | Network down / API error / timeout | live | working (Vosk + Piper are offline) | "Scene assistant unavailable" |
 | Camera disconnected or frame stale | frozen → must be flagged, not shown as current | working | "Camera view is unavailable" |
-| No detections on a fresh frame | live | working | OMNI may still describe the image; the prompt forbids "nothing is there / area is clear" |
-| `OMNI_FAKE=1` (demo/test switch) | live | working | canned answer from `omni/fake.py`, no network |
+| No detections on a fresh frame | live | working | Local no-detections statement; unrecognized objects may still be present; no cloud request |
+| `python -m omni.demo` (explicit fake client) | live | working | canned answer from `omni/fake.py`, no network |
 | `YIBU_API_KEY` unset | live | working | `require_env_api_key` raises `SystemExit` — `client.py` must catch it at construction and report "assistant not configured" instead of exiting the process |
 
 Demo moment: pull the network mid-run → preview and voice commands keep
@@ -314,12 +314,12 @@ working, assistant says it's unavailable, haptics (separate path) continue.
 | `computer-vision/track_distances.py` | [exists] `main(state: SceneState \| None = None)` publishes original frame + all detections before plotting; source mode derives from `SOURCE`; reset at entry and in `finally` | Consumers share the latest evidence without calling OpenCV/YOLO; result-receipt timing limitation documented in §6 |
 | `speech/stt.py` | Add a "capture raw audio for N seconds, bypassing the recogniser" mode, or expose the mic stream | Vosk cannot hear open-vocabulary questions |
 | `configs/grammar.json` / `configs/speech.json` | Add the chosen wake phrase to the grammar and set `wake_phrase` | Only grammar entries are recognised; the wake phrase must be in the grammar |
-| `requirements.txt` | Merge `omni/requirements.txt` (`httpx>=0.27,<1`, `websockets>=15,<17`) into the top-level file so one venv runs the whole host | Today `omni/` has its own `.venv` |
-| `omni/` | Add `__init__.py`; switch `from yibu_http import …` to relative imports (or `sys.path` shim in `client.py`) | `main.py` must be able to `import omni.client` |
-| `omni/yibu_http.py` | Add optional `timeout` parameter to `chat_completion` (default stays 300 s) and a bytes-accepting path in `build_omni_messages` | Vendor code assumes files and unbounded time |
+| `requirements.txt` | [exists] HTTPX and websockets merged into root requirements | No new dependencies for the application client |
+| `omni/` | [exists] Importable package with relative vendor imports | Run commands from the repo root |
+| `omni/yibu_http.py` | [exists] `timeout=300.0` default and `MediaBytes` input support | Vendor CLIs retain previous behavior |
 | env | `YIBU_API_KEY` from environment only (already enforced by `yibu_audit.require_env_api_key`) | Never in code or logs |
 | `.gitignore` | Decide whether `omni/artifacts/*.jsonl` stays committed — it records key **suffixes** and per-call latency | Currently committed with 3 vendor-example calls |
-| New in `omni/` | `client.py`, `scene.py`, `fake.py` | The assistant layer |
+| Application `omni/` | [exists] `client.py`, `_request_worker.py`, `scene.py`, `fake.py`, `demo.py` | Offline scene-to-speech milestone; live provider check requires configured credentials |
 | New `main.py` | Start YOLO, configure `speech`, register `describe` handler, clean shutdown | One orchestrator instead of three separate scripts |
 
 ## 9. Configuration knobs (single place, e.g. `configs/assistant.json`)
@@ -331,7 +331,7 @@ working, assistant says it's unavailable, haptics (separate path) continue.
 | `max_scene_age_ms` | `500` | Older frame ⇒ "camera unavailable"; **measure** before tuning |
 | `omni_model` | `qwen3.5-omni-flash` | Request/response over `yibu_http.chat_completion`; switch to `qwen3.5-omni-plus-realtime` / `gemini-3.1-flash-live-preview` only after this works |
 | `omni_base_url` | `https://yibuapi.com/v1` | `yibu_http.DEFAULT_BASE_URL` |
-| `omni_timeout_s` | `5.0` | Hard cap passed to `httpx.Client`; answer target is ≤ 3 s. Vendor default is 300 s |
+| `omni_timeout_s` | `5.0` | `ClientConfig.timeout_s`: subprocess deadline, further limited by scene lifetime; HTTPX timeout alone is not a total deadline |
 | `omni_purpose` | `sixth_sense_scene` | Ledger tag so demo calls can be summarised separately from vendor examples |
 | `audit_log` | `omni/artifacts/yibu_api_calls.jsonl` | Or `YIBU_AUDIT_LOG` env var; `summarize_usage.py` reads it |
 | `frame_jpeg_width` | `640` | Upload size vs latency |
@@ -354,11 +354,37 @@ working, assistant says it's unavailable, haptics (separate path) continue.
 - The assistant can only describe the camera's field of view — never "around
   me" in the 360° sense, never behind the wearer.
 - An empty detection list or an unavailable frame is never "the area is clear".
-- Latency (wake → first spoken word) is a goal of ≤ 3 s, **unmeasured** until
-  the `omni/client.py` + `scene.py` layer exists. The only measured numbers
+- Latency (wake → first spoken word) is a goal of ≤ 3 s, **unmeasured** on the real multimodal path. The client/scene layer now exists
+  and has offline tests; that does not establish live latency. The only measured numbers
   are text-only round trips from the vendor examples (~1 s HTTP, ~1.9 s
   Gemini Live); they exclude recording, JPEG/WAV encoding, upload of a
   640 px frame + 3 s of audio, and Piper synthesis.
 - The `omni/` ledger records token counts and latency, not correctness. A
   successful call proves the endpoint answered, not that the answer was
   grounded in the frame.
+
+## 12. Application milestone and remaining integration
+
+The offline path is implemented: synthetic SceneState → in-memory JPEG/evidence →
+fake assistant → SpeechService/FakeTTS. Run `python -m omni.demo`; run the complete
+OMNI suite with `python -m unittest discover -s omni/tests -t . -v`.
+`python -m omni.demo --live --audit-log /tmp/sixth-sense-live-check.jsonl` explicitly
+opts into one provider call with a generated drawing and no microphone/camera data.
+It requires YIBU_API_KEY and has not been verified without credentials.
+
+Application results contain status, text, reason, call_id, and (for scene results)
+expires_at/source_mode. No exception text or media is logged. The isolated worker
+collects only status and numeric usage from vendor audit callbacks; the parent
+writes once through the unchanged vendor ledger writer. Killing a worker leaves
+usage unknown, not zero. No automatic retries. Cloud access defaults to disabled.
+
+Input and reply freshness share the chosen max scene age; slow responses are
+rejected, and speech TTL is limited to the remaining lifetime. The strict default
+is 0.5 seconds, which may make real cloud responses unavailable. The synthetic demo
+explicitly uses 5 seconds; choose live settings from measurements. Resetting the
+scene during a request rejects its answer, but an orchestrator still needs to
+cancel already queued speech on session change.
+
+Live question recording, wake-handler integration, a bounded orchestration worker,
+real-camera/microphone/speaker testing, and live latency/accuracy evaluation remain
+planned. Scene helper calls belong on that worker, never the CV or dispatcher loop.
