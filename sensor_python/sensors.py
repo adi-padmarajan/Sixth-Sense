@@ -54,7 +54,7 @@ Test
 if __name__ == "__main__":
     driver = FakeSensorDriver()
     driver.set_distance(pin=17, meters=0.3)
-    distance = read_distance_mm(driver, trigger_pin=27, echo_pin=99)
+    distance = read_distance_mm(driver, trigger_pin=27, echo_pin=)
     print(distance)
 
 
