@@ -22,4 +22,9 @@ class FakeSensorDriver:
             return None
 
         return 2 * meters / SPEED_OF_SOUND_M_S 
-    
+    def set_distance(self, pin: int, meters: Optional[float]) -> None:
+        """
+        Configure what 'pin' reports on it's next echo read
+        Pass None to simulate no echo returning (out of range/ disconnected)
+        """
+        self._distance_m[pin] = meters
