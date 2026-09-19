@@ -54,8 +54,8 @@ class _CaptureBuffer:
     """Accumulates callback blocks until `target_bytes` have arrived.
 
     `append()` runs on the PortAudio thread: no locks, no logging, no
-    allocation beyond the list append. `max_blocks` bounds the list even
-    if the done signalling has a bug. `abort()` wakes the waiter with
+    unbounded storage; the final byte block may be truncated. `max_blocks`
+    bounds the list even if the done signalling has a bug. `abort()` wakes the waiter with
     `aborted` set; the buffer is then discarded.
     """
 
@@ -72,6 +72,7 @@ class _CaptureBuffer:
     def append(self, data: bytes) -> None:
         if self.done.is_set() or len(self.blocks) >= self.max_blocks:
             return
+        data = data[:self.target_bytes - self.size]
         self.blocks.append(data)
         self.size += len(data)
         if self.size >= self.target_bytes:
@@ -207,6 +208,10 @@ class VoskSTT:
     def is_capturing(self) -> bool:
         return self._capturing.is_set()
 
+    @property
+    def muted(self) -> bool:
+        return self._muted.is_set()
+
     def capture(self, seconds: float, *, timeout: Optional[float] = None) -> Optional[bytes]:
         """Record `seconds` of raw mic audio, bypassing the recogniser, and
         return it as a 16 kHz mono 16-bit WAV. Blocks the caller for
@@ -228,11 +233,12 @@ class VoskSTT:
             return None
         try:
             frames = int(seconds * self.samplerate)
+            self._drain_audio()
             buf = _CaptureBuffer(frames * SAMPLE_WIDTH, frames // self.blocksize + 2)
             self._capture = buf
             self._capturing.set()
-            if self._muted.is_set():
-                # Mute landed between the check above and arming the buffer.
+            if not self._running.is_set() or self._muted.is_set():
+                # Stop or mute landed between the check above and arming the buffer.
                 return None
             finished = buf.done.wait(seconds + 1.0 if timeout is None else timeout)
             if not finished or buf.aborted:
@@ -242,7 +248,16 @@ class VoskSTT:
             self._capturing.clear()
             self._capture = None
             self._reset_pending.set()
+            self._drain_audio()
             self._capture_lock.release()
+
+    def _drain_audio(self):
+        """Discard pre-capture audio so it cannot become delayed commands."""
+        while True:
+            try:
+                self._audio_q.get_nowait()
+            except queue.Empty:
+                return
 
     def start(self):
         if self._running.is_set():
@@ -260,6 +275,11 @@ class VoskSTT:
             self._stream.start()
         except Exception:
             self._running.clear()
+            if self._stream is not None:
+                try:
+                    self._stream.close()
+                except Exception:
+                    log.warning("stt_cleanup_failed reason=stream_close_failed")
             self._stream = None
             raise
         self._worker = threading.Thread(target=self._run, name="stt-worker", daemon=True)
@@ -272,18 +292,20 @@ class VoskSTT:
                 data = self._audio_q.get(timeout=0.2)
             except queue.Empty:
                 continue
-            if self._reset_pending.is_set():
-                self._reset_pending.clear()
-                self.recognizer.Reset()
+            if self._muted.is_set() or self._capturing.is_set():
+                continue
             try:
+                if self._reset_pending.is_set():
+                    self._reset_pending.clear()
+                    self.recognizer.Reset()
                 if self.recognizer.AcceptWaveform(data):
                     result = json.loads(self.recognizer.Result())
                     text = result.get("text", "").strip()
                     if text and self.on_command:
                         self.on_command(text, time.monotonic(), SOURCE_MODE)
-            except Exception as exc:  # noqa: BLE001 - keep listening
-                log.exception("stt: recognition failed")
-                self._report_fault(f"recognition_failed: {exc}")
+            except Exception:  # noqa: BLE001 - keep listening
+                log.warning("stt_fault reason=recognition_failed")
+                self._report_fault("recognition_failed")
                 self._reset_pending.set()
 
             now = time.monotonic()
@@ -301,14 +323,24 @@ class VoskSTT:
             try:
                 self.on_fault(reason)
             except Exception:  # noqa: BLE001
-                log.exception("stt: on_fault callback raised")
+                log.warning("stt_callback_failed reason=on_fault_failed")
 
     def stop(self):
         self._running.clear()
-        if self._stream is not None:
-            self._stream.stop()
-            self._stream.close()
-            self._stream = None
+        buf = self._capture
+        if buf is not None:
+            buf.abort()
+        stream, self._stream = self._stream, None
+        if stream is not None:
+            try:
+                stream.stop()
+            except Exception:
+                log.warning("stt_cleanup_failed reason=stream_stop_failed")
+            finally:
+                try:
+                    stream.close()
+                except Exception:
+                    log.warning("stt_cleanup_failed reason=stream_close_failed")
         if self._worker is not None:
             self._worker.join(timeout=1)
             self._worker = None

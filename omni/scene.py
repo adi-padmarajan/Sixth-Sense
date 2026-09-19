@@ -18,7 +18,7 @@ TEXT_QUESTION_PREFIX = "Question: "
 
 class SceneReader(Protocol):
     @property
-    def session_generation(self) -> int: ...
+    def session_generation(self) -> int | None: ...
 
     def read(self, max_age_s: float | None = None): ...
 
@@ -54,10 +54,13 @@ def describe_scene(state: SceneReader, client, *, prompt: str = "What is in the 
 
     def unavailable(reason, *, call_id=None):
         return replace(AssistantResult.unavailable(reason, camera=True),
-                       source_mode=snapshot.source_mode, call_id=call_id)
+                       source_mode=snapshot.source_mode, call_id=call_id,
+                       session_generation=generation)
 
     if age_now() > max_age_s:
         return unavailable("stale_scene")
+    if snapshot.quality != "ok":
+        return unavailable("low_quality")
 
     import cv2  # no camera/window creation; only encode the original BGR pixels
 
@@ -91,7 +94,7 @@ def describe_scene(state: SceneReader, client, *, prompt: str = "What is in the 
     if age_now() > answer_within_s:
         return unavailable("stale_scene", call_id=result.call_id)
     return replace(result, expires_at=snapshot.captured_at + answer_within_s,
-                   source_mode=snapshot.source_mode)
+                   source_mode=snapshot.source_mode, session_generation=generation)
 
 
 def describe_and_speak(state, client, speech, **kwargs) -> AssistantResult:
@@ -107,9 +110,15 @@ def describe_and_speak(state, client, speech, **kwargs) -> AssistantResult:
         return result
     clock = kwargs.get("clock", time.monotonic)
     ttl = 0.5 if result.expires_at is None else result.expires_at - clock()
-    if ttl <= 0:
+    def valid():
+        remaining = 0.5 if result.expires_at is None else result.expires_at - clock()
+        return (math.isfinite(remaining) and remaining > 0
+                and (result.session_generation is None
+                     or state.session_generation == result.session_generation))
+
+    if not math.isfinite(ttl) or ttl <= 0 or not valid():
         return replace(result, status="unavailable", text="Camera view is unavailable",
                        reason="stale_scene")
     speech.speak(result.text, priority=Priority.LOW if result.status == "success" else Priority.NORMAL,
-                 ttl_seconds=ttl)
+                 ttl_seconds=ttl, is_valid=valid)
     return result

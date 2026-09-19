@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 import threading
 import time
@@ -31,10 +32,21 @@ def log_event(session_id, event, *, level=logging.INFO, **fields):
     log.log(level, json.dumps(dict(session_id=session_id, event=event, **fields)))
 
 
-def check_grammar(speech_cfg: SpeechConfig, cfg: AssistantConfig):
+HOST_CONTROLS = ("volume up", "volume down", "mute", "sound on")
+CONTROLLER_CONTROLS = ("pause feedback", "resume feedback", "increase sensitivity", "decrease sensitivity")
+
+
+def check_grammar(speech_cfg: SpeechConfig, cfg: AssistantConfig, handlers=None):
     for command in (cfg.describe_command, cfg.direct_question_command):
         if command not in speech_cfg.grammar:
             raise ValueError(f"assistant command {command!r} is missing from the speech grammar")
+    commands = (cfg.describe_command, cfg.direct_question_command, "device status", "stop speaking",
+                *HOST_CONTROLS, *CONTROLLER_CONTROLS)
+    if len(set(commands)) != len(commands):
+        raise ValueError("assistant commands conflict with other handlers")
+    missing = set(speech_cfg.grammar) - set(commands if handlers is None else handlers)
+    if missing:
+        raise ValueError(f"grammar phrases without handlers: {sorted(missing)}")
 
 
 class Orchestrator:
@@ -49,11 +61,58 @@ class Orchestrator:
         self._busy = threading.Lock()
         self._lifecycle = threading.Lock()
         self._closing = threading.Event()
+        self._capturing = threading.Event()
+        self._last_control_seq = {}  # latest per source; bounded, rejects duplicate mutations
         self._worker: threading.Thread | None = None
         speech.on(cfg.describe_command, lambda cmd: self.start_question(cmd, capture=True))
         speech.on(cfg.direct_question_command, lambda cmd: self.start_question(cmd, capture=False))
         speech.on("device status", lambda cmd: self.say_status())
         speech.on("stop speaking", lambda cmd: speech.stop_speaking())
+        for phrase in HOST_CONTROLS:
+            speech.on(phrase, self.set_audio)
+        for phrase in CONTROLLER_CONTROLS:
+            speech.on(phrase, self.unsupported_control)
+        check_grammar(speech_cfg, cfg, speech.handled_commands)
+
+    def unsupported_control(self, cmd):
+        log_event(self.session_id, "command_unsupported", command=cmd.text, seq=cmd.seq,
+                  reason="controller_unavailable")
+        self.speak("Haptic controls are not available yet.", Priority.NORMAL, ttl_seconds=2)
+
+    def set_audio(self, cmd):
+        with self._lifecycle:
+            if self._closing.is_set():
+                return
+            if cmd.seq <= self._last_control_seq.get(cmd.source_mode, -1):
+                log_event(self.session_id, "command_dropped", seq=cmd.seq, reason="duplicate_control")
+                return
+            self._last_control_seq[cmd.source_mode] = cmd.seq
+            try:
+                if cmd.text in ("volume up", "volume down"):
+                    step = 1 if cmd.text == "volume up" else -1
+                    target = max(1, min(5, self.speech.volume_level + step))
+                    self.speech.set_volume(target)
+                    text = f"Volume {target} of 5" + (", sound muted." if self.speech.muted else ".")
+                else:
+                    muted = cmd.text == "mute"
+                    self.speech.set_muted(muted)
+                    text = ("Sound muted. High priority alerts remain on." if muted else
+                            f"Sound on. Volume {self.speech.volume_level} of 5.")
+            except RuntimeError:
+                log_event(self.session_id, "command_unsupported", seq=cmd.seq, reason="tts_unavailable")
+                return
+            self.speech.speak(text, Priority.NORMAL, ttl_seconds=2, bypass_mute=True)
+
+    # Read-only adapter prevents late workers touching SceneState after close's
+    # bounded join. No lifecycle lock is held while encoding or calling a model.
+    @property
+    def session_generation(self):
+        with self._lifecycle:
+            return None if self._closing.is_set() else self.state.session_generation
+
+    def read(self, max_age_s=None):
+        with self._lifecycle:
+            return None if self._closing.is_set() else self.state.read(max_age_s)
 
     @property
     def question_in_flight(self):
@@ -66,12 +125,18 @@ class Orchestrator:
                 return
             if not self._busy.acquire(blocking=False):
                 log_event(self.session_id, "question_dropped", reason="busy", seq=cmd.seq)
+                if not self._capturing.is_set():
+                    self.speech.speak("Still answering.", Priority.NORMAL, ttl_seconds=1,
+                                      is_valid=lambda: not self._capturing.is_set() and not self._closing.is_set())
                 return
             try:
+                if capture:
+                    self._capturing.set()
                 self._worker = threading.Thread(target=self._run_question, args=(cmd, capture),
                                                 daemon=True, name="assistant")
                 self._worker.start()
             except Exception:
+                self._capturing.clear()
                 self._worker = None
                 self._busy.release()
                 raise
@@ -89,20 +154,31 @@ class Orchestrator:
         capture_end = t0
         assistant_start = None
         result = AssistantResult.unavailable("closing")
+
+        def on_started(at):
+            log_event(self.session_id, "speech_started", seq=cmd.seq,
+                      source_mode=cmd.source_mode, speech_started_ms=round((at - cmd.recognized_at) * 1000, 3))
+
+        def handoff(text, priority=Priority.NORMAL, **kwargs):
+            return self.speak(text, priority=priority, on_started=on_started, **kwargs)
+
         try:
             if self._closing.is_set():
                 return
-            wav = self.speech.capture_question(self.speech_cfg.question_seconds) if capture else None
-            capture_end = time.monotonic()
+            try:
+                wav = self.speech.capture_question(self.speech_cfg.question_seconds) if capture else None
+            finally:
+                self._capturing.clear()
+                capture_end = time.monotonic()
             if self._closing.is_set():
                 return
             if capture and wav is None:
                 result = AssistantResult("unavailable", "I could not hear the question", "capture_failed")
-                self.speak(result.text, Priority.NORMAL, ttl_seconds=2)
+                handoff(result.text, Priority.NORMAL, ttl_seconds=2)
                 return
             assistant_start = time.monotonic()
             result = describe_and_speak(
-                self.state, self.client, self, wav=wav, prompt=self.cfg.direct_question_prompt,
+                self, self.client, SimpleNamespace(speak=handoff), wav=wav, prompt=self.cfg.direct_question_prompt,
                 max_age_s=self.cfg.max_scene_age_ms / 1000,
                 answer_within_s=self.cfg.answer_within_ms / 1000,
                 jpeg_width=self.cfg.frame_jpeg_width,
@@ -110,8 +186,10 @@ class Orchestrator:
         except Exception:
             # Backend failures must not strand the lock or log media-bearing exceptions.
             result = AssistantResult.unavailable("worker_failed")
-            self.speak(result.text, Priority.NORMAL, ttl_seconds=2)
+            log_event(self.session_id, "question_failed", reason="worker_failed", seq=cmd.seq)
+            handoff(result.text, Priority.NORMAL, ttl_seconds=2)
         finally:
+            self._capturing.clear()
             ended = time.monotonic()
             if self._closing.is_set():
                 result = replace(result, status="unavailable", reason="closing")
@@ -131,7 +209,8 @@ class Orchestrator:
         listening = health.get("stt", "unavailable")
         if listening not in ("ready", "partial"):
             listening = "unavailable"
-        camera = "live" if self.state.read(self.cfg.max_scene_age_ms / 1000) is not None else "unavailable"
+        snapshot = self.read(self.cfg.max_scene_age_ms / 1000)
+        camera = snapshot.source_mode if snapshot is not None else "unavailable"
         question = "in flight" if self.question_in_flight else "idle"
         self.speak(f"Speech {health.get('tts', 'unavailable')}, listening {listening}, "
                    f"cloud {self.cloud_state}, camera {camera}, question {question}.",
@@ -165,7 +244,7 @@ def main(argv=None):
         check_grammar(speech_cfg, cfg)
         startup("grammar")
         fake = os.environ.get("OMNI_FAKE") == "1"
-        enabled = args.cloud or cfg.cloud_enabled
+        enabled = args.cloud  # application media leaves the host only with this explicit flag
         client = FakeOmniClient() if fake else OmniClient(cfg.client_config(cloud_enabled=enabled))
         cloud_state = "fake" if fake else "on" if enabled else "off"
         startup("client", cloud_state=cloud_state)
@@ -188,10 +267,12 @@ def main(argv=None):
         import track_distances
 
         if args.source is not None:
+            if not args.source.is_file():
+                raise FileNotFoundError("Replay source must be a prepared local file")
             track_distances.SOURCE = str(args.source)
         startup("preview", cloud_state=cloud_state,
                 source_mode="live" if isinstance(track_distances.SOURCE, int) else "replay")
-        track_distances.main(state)
+        track_distances.main(state, preview_status=lambda: orch.cloud_state)
         return 0
     except KeyboardInterrupt:
         return 0

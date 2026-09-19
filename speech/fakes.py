@@ -33,6 +33,8 @@ class FakeTTS(QueuedTTS):
     def _synthesize_and_play(self, text: str, should_stop: Callable[[], bool]):
         if text == self.fail_on:
             raise RuntimeError(f"fake playback failure for {text!r}")
+        if not self._playback_started():
+            return
         self.spoken.append(text)
         deadline = time.monotonic() + self.play_seconds
         while time.monotonic() < deadline:

@@ -106,6 +106,16 @@ which is what keeps offline recognition fast and reliable:
 `pause feedback` · `resume feedback` · `increase sensitivity` ·
 `decrease sensitivity` · `volume up` · `volume down` · `mute` · `sound on`
 
+Every phrase has a handler, checked at startup. Volume uses bounded levels 1–5
+(default 3); audio controls speak confirmations. Mute preserves HIGH alerts and
+`sound on` recognition, without muting the microphone. Pause/resume feedback and
+sensitivity commands honestly say haptic controls are not available yet; the host
+has no controller configuration bridge.
+
+`describe` plays a short listening tone before recording the question (disable with
+`listening_tone: false` in speech config). A busy question says "Still answering"
+only outside recording, to avoid interrupting the accepted capture.
+
 ## Getting started
 
 Everything below is the companion-host software. It runs on a laptop with a
@@ -114,7 +124,8 @@ webcam and a microphone; no sensors or motors needed.
 ```bash
 git clone https://github.com/adi-padmarajan/Sixth-Sense.git
 cd Sixth-Sense
-python3 -m venv .venv && source .venv/bin/activate
+# On the development Mac, use conda base: /opt/anaconda3/bin/python
+python --version
 pip install -r requirements.txt          # speech + assistant deps
 pip install ultralytics opencv-python    # computer vision deps
 bash scripts/fetch_models.sh             # Piper voice (~60 MB) + Vosk model (~40 MB)
@@ -137,8 +148,16 @@ python main.py --cloud
 python main.py --source path/to/clip.mp4
 ```
 
-Press `q` in the preview window or `Ctrl-C` to quit. Then say **"what's in
-front of me"** and listen.
+While running, say **"what's in front of me"** and listen. Press `q` in the
+preview window or `Ctrl-C` to quit.
+
+Live camera generator loss now shows CAMERA UNAVAILABLE and retries with
+provisional 0.5–5 s backoff while voice commands keep running. Replay EOF exits
+normally. A provisional image-quality floor rejects very dark, bright or
+low-contrast frames without a cloud request. The preview labels cloud and camera
+state; image mirroring defaults off and wearer orientation still needs a manual
+check. These paths have headless fault-injection tests; upstream blocking camera
+operations and actual device reconnect responsiveness need a device rehearsal.
 
 Smaller pieces on their own:
 
@@ -155,10 +174,15 @@ python sensor/sensors.py                 # fake ultrasonic read → distance in 
 All offline: no camera, mic, sensors, network, GPU, or API key.
 
 ```bash
-env -u YIBU_API_KEY python -m pytest tests -q                                        # 76 tests
-env -u YIBU_API_KEY python -m unittest discover -s omni/tests -t . -v                # 49 tests
-env -u YIBU_API_KEY python -m unittest discover -s computer-vision/Tests -p 'test_*.py' -v  # 22 tests
+env -u YIBU_API_KEY python -m pytest tests omni/tests computer-vision/Tests -q
+env -u YIBU_API_KEY python -W error -m pytest omni/tests -q
 ```
+
+Host logs include command-to-handoff and first-PCM-submission timing; aggregate
+a saved JSON-lines log with `python scripts/summarize_latency.py demo.log` (or
+stdin using `-`). Counts/p50/p95/max are split by status and capture mode. This
+is software timing, not measured acoustic onset. Live vendor ledgers/summaries
+are git-ignored; historical committed examples live in `omni/artifacts/examples/`.
 
 ## Hardware
 
@@ -208,7 +232,7 @@ computer-vision/    YOLO tracker, SceneState, tests, local checkpoint
 speech/             Piper TTS + Vosk STT service, fakes, downloaded models (gitignored)
 omni/               assistant client, scene request builder, fake, vendor CLIs, audit ledger
 configs/            speech.json · assistant.json · grammar.json (all schema_version 1)
-scripts/            fetch_models.sh · check_capture.py
+scripts/            fetch_models.sh · check_capture.py · summarize_latency.py
 tests/              orchestrator + speech tests
 SYSTEM_ARCHITECTURE.md   companion-host software architecture in depth
 AGENTS.md / CLAUDE.md    engineering guidance for contributors and coding agents

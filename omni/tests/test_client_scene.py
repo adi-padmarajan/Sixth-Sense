@@ -73,6 +73,14 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(records[0]["total_tokens"], 3)
         self.assertEqual(records[0]["call_id"], result.call_id)
 
+    def test_malformed_worker_envelope_is_audited_and_reaped(self):
+        for outcome in ([], None, 42):
+            process = self.fake_process(outcome)
+            with patch("omni.client.subprocess.Popen", return_value=process):
+                result = OmniClient(self.config).complete("q", b"jpeg")
+            self.assertEqual(result.reason, "worker_failed")
+            self.assertEqual(process.communicate.call_count, 2)
+
     def test_network_error_is_unavailable_and_audited(self):
         with patch("omni.client.subprocess.Popen", return_value=self.fake_process(
                 dict(ok=False, reason="network_error"))):
@@ -204,6 +212,7 @@ class SceneTests(unittest.TestCase):
         self.state = SceneState(clock=self.clock)
         self.frame = np.zeros((12, 30, 3), dtype=np.uint8)
         self.frame[:] = (0, 0, 255)
+        self.frame[6:] = (180, 180, 180)
         self.boxes = SimpleNamespace(xyxy=np.array([[1., 1., 5., 9.]]), cls=np.array([7]),
                                      conf=np.array([0.71]), id=None)
         self.state.update(self.frame, self.boxes, {7: "chair"}, "simulated")
@@ -361,3 +370,51 @@ class SceneTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class QualityAndHandoffTests(unittest.TestCase):
+    setUp = SceneTests.setUp
+    describe = SceneTests.describe
+    def test_low_quality_never_encodes_or_calls_cloud(self):
+        for value, quality in [(0, 'too_dark'), (255, 'too_bright'), (128, 'low_contrast')]:
+            self.state.update(np.full_like(self.frame, value), self.boxes, {7: 'chair'}, 'simulated')
+            self.assertEqual(self.state.read().quality, quality)
+            client, speech = Mock(), Mock()
+            with patch('cv2.imencode') as encode:
+                result = describe_and_speak(self.state, client, speech, clock=self.clock)
+            self.assertEqual(result.reason, 'low_quality')
+            self.assertEqual(result.text, 'Camera view is unavailable')
+            self.assertEqual(result.source_mode, 'simulated')
+            client.complete.assert_not_called()
+            encode.assert_not_called()
+
+    def test_reset_between_response_and_handoff_is_silent(self):
+        result = self.describe(FakeOmniClient())
+        self.state.reset()
+        speech = Mock()
+        with patch('omni.scene.describe_scene', return_value=result):
+            result = describe_and_speak(self.state, Mock(), speech, clock=self.clock)
+        self.assertEqual(result.reason, 'stale_scene')
+        speech.speak.assert_not_called()
+
+    def test_nan_or_negative_handoff_ttl_never_enqueues(self):
+        for expiry in (float('nan'), float('inf'), 9.0, 10.0):
+            result = AssistantResult('success', 'old', expires_at=expiry)
+            speech = Mock()
+            with patch('omni.scene.describe_scene', return_value=result):
+                outcome = describe_and_speak(self.state, Mock(), speech, clock=self.clock)
+            self.assertEqual(outcome.reason, 'stale_scene')
+            speech.speak.assert_not_called()
+
+    def test_queued_answer_invalidated_on_reset(self):
+        from speech.fakes import FakeTTS
+        tts = FakeTTS()
+        result = describe_and_speak(self.state, FakeOmniClient(), tts, clock=self.clock)
+        self.assertEqual(result.status, 'success')
+        self.state.reset()
+        tts.start()
+        try:
+            self.assertTrue(tts.wait_idle(1))
+            self.assertEqual(tts.spoken, [])
+        finally:
+            tts.shutdown()

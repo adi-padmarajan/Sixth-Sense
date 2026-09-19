@@ -10,7 +10,7 @@
 
 ## 1. One-paragraph summary
 
-The wearer says a wake phrase, then asks a question ("what's in front of me?").
+With `--cloud` explicitly enabled, the wearer says a wake phrase, then asks a question ("what's in front of me?").
 Vosk (offline, grammar-limited) catches the wake phrase; the next few seconds
 of microphone audio are recorded. That audio, the current camera frame, and
 YOLO's structured detection list are sent in **one** request to an OMNI model
@@ -230,8 +230,9 @@ a handler is running queue up behind it and are discarded once older than
     {"class_id": 42, "class_name": "chair", "conf": 0.71,
      "xyxy": (x0, y0, x1, y1),        # four floats, original-image pixels, top-left origin
      "track_id": 7,                   # or None
-     "region": "left"}                # left | center | right, by box-centre x / thirds
+     "region": "left", "mirrored": False}                # left | center | right, by box-centre x / thirds
   ],
+  "quality": "ok",                    # ok | too_dark | too_bright | low_contrast
   "source_mode": "live",              # live | replay | simulated
   "sequence": 1,                      # +1 per update; first update after reset is 1
   "session_generation": 0              # increments on reset, invalidates pending answers
@@ -239,7 +240,9 @@ a handler is running queue up behind it and are discarded once older than
 ```
 
 Region thirds are **camera-view** positions ("left of the camera view"), not
-wearer-relative directions — the preview is not yet verified for mirroring.
+wearer-relative directions until a manual orientation check. `Detection.mirrored`
+records an explicit `update(..., mirrored=True)` region swap; original coordinates
+stay unchanged. `MIRROR_PREVIEW=False` independently controls display-only flipping.
 For centre x and width W: left is x < W/3; center is W/3 <= x < 2W/3;
 right is x >= 2W/3. Exact boundaries belong to the region on the right.
 
@@ -254,8 +257,25 @@ and no JPEG encoding.
 limit it also returns `None` if age is strictly greater than the limit. Equality
 is fresh. `age_s()` returns the latest age, or `None` when empty. `reset()` clears
 evidence and the sequence counter and increments `session_generation`. The adapter
-compares that generation before using an in-flight answer. The tracking loop resets at entry/exit;
-automatic mid-stream reconnect detection and tracker reset remain planned.
+compares that generation before speech handoff and the queue checks it before/during
+playback. `track_distances.reset_session(model, state)` clears scene evidence and
+Ultralytics tracker history/IDs together on disconnect and exit. Installed
+Ultralytics 8.4.138 reuses `model.predictor`; its `on_predict_start` returns early
+when trackers exist and `persist=True`. A fresh `track()` call alone does not reset
+IDs, so the hook explicitly calls each tracker's `reset()` and clears cached
+features/video paths. Live-source exceptions or exhaustion close the old loader
+and start a fresh generator after bounded exponential backoff (0.5 s to 5 s,
+provisional constants, unlimited attempts). A dark unavailable placeholder pumps
+GUI events throughout backoff; `q` quits. Replay EOF completes normally. Upstream
+blocking camera open/read or loader cleanup can still delay the GUI; physical
+disconnect/reconnect responsiveness needs a device rehearsal.
+
+Quality is separate from freshness and detection confidence. NumPy computes BGR
+luminance `(29*B + 150*G + 77*R)/256`: mean below 16 is `too_dark`, above 240 is
+`too_bright`, otherwise standard deviation below 8 is `low_contrast`; all other
+frames are `ok`. These are provisional, uncalibrated bench constants, with strict
+inequalities tested at and just across each boundary. This simple floor does not
+detect every covered lens, blur, obstruction, or unusable scene.
 
 The clock defaults to `time.monotonic` and can be injected for tests. With the
 current minimal tracking integration, `captured_at` is sampled at `update()`
@@ -316,8 +336,9 @@ plus a 640 px JPEG in **one** qwen3.5-omni-flash request (see the call ledger).
 | --- | --- | --- | --- |
 | Normal | live | working | grounded description |
 | Network down / API error / timeout | live | working (Vosk + Piper are offline) | "Scene assistant unavailable" if returned within answer lifetime; expired replies are discarded silently |
-| Frame absent/stale while tracker still runs | may be frozen | working | "Camera view is unavailable"; no stale frame sent |
-| Camera disconnected | tracker may exit/raise | shutdown if tracker exits | Camera-unavailable status only while the application remains running; reconnect is not implemented |
+| Frame absent/stale while tracker still runs | upstream blocked reads can delay UI | working | "Camera view is unavailable"; no stale frame sent |
+| Camera disconnected (generator raises/ends) | dark CAMERA UNAVAILABLE placeholder, reconnect count, `q` active during backoff | working | "Camera view is unavailable"; scene reset prevents stale claims |
+| Fresh but below image-quality floor | labelled low quality with reason | working | "Camera view is unavailable", reason `low_quality`; no encoding/cloud request |
 | No detections on a fresh frame | live | working | Send the image with `Detected (age N ms): none`; the model may describe the frame, never an all-clear |
 | `OMNI_FAKE=1 python main.py` | live | working | Canned answer from `omni/fake.py`, no network; fake state announced/logged |
 | `python -m omni.demo` | synthetic image | fake TTS only | Offline synthetic scene demonstration |
@@ -332,16 +353,16 @@ working, assistant says it's unavailable, haptics (separate path) continue.
 
 | File | Change | Why |
 | --- | --- | --- |
-| `computer-vision/track_distances.py` | [exists] `main(state: SceneState \| None = None)` publishes original frame + all detections before plotting; source mode derives from `SOURCE`; reset at entry and in `finally` | Consumers share the latest evidence without calling OpenCV/YOLO; result-receipt timing limitation documented in §6 |
+| `computer-vision/track_distances.py` | [exists] `main(state: SceneState \| None = None)` publishes original frame + all detections before plotting; source mode derives from `SOURCE`; reset at entry, disconnect, and in `finally`; live reconnect with a labelled placeholder | Consumers share the latest evidence without calling OpenCV/YOLO; result-receipt timing limitation documented in §6 |
 | `speech/stt.py` | [exists] `VoskSTT.capture(seconds)` diverts callback blocks to a bounded buffer for an exact sample count | Vosk cannot hear open-vocabulary questions |
 | `configs/grammar.json` / `configs/speech.json` | [exists] `describe` and direct question in grammar; `wake_phrase: null`, `question_seconds: 3.0` | Commands dispatch directly; `describe` starts open-vocabulary capture |
 | `requirements.txt` | [exists] HTTPX and websockets merged into root requirements | No new dependencies for the application client |
 | `omni/` | [exists] Importable package with relative vendor imports | Run commands from the repo root |
 | `omni/yibu_http.py` | [exists] `timeout=300.0` default and `MediaBytes` input support | Vendor CLIs retain previous behavior |
 | env | `YIBU_API_KEY` from environment only (already enforced by `yibu_audit.require_env_api_key`) | Never in code or logs |
-| `.gitignore` | Decide whether `omni/artifacts/*.jsonl` stays committed — it records key **suffixes** and per-call latency | Currently committed with 3 vendor-example calls |
+| `.gitignore` / `omni/artifacts/examples/` | [exists] Previously committed vendor records and summaries are preserved under `examples/`; live ledger and generated `summary/` are ignored | Demo calls no longer dirty tracked files; the default audit path stays unchanged |
 | Application `omni/` | [exists] `client.py`, `_request_worker.py`, `scene.py`, `fake.py`, `demo.py` | Offline scene-to-speech milestone; live provider check requires configured credentials |
-| `main.py` | [exists] Start YOLO, configure speech, register question/status/stop handlers, clean shutdown | One orchestrator instead of three separate scripts |
+| `main.py` | [exists] Start YOLO, configure speech, register every grammar handler, verify coverage, clean shutdown | One orchestrator instead of three separate scripts |
 | `omni/config.py`, `configs/assistant.json` | [exists] Validated assistant configuration; grammar checked at startup | No scattered assistant settings |
 
 ## 9. Configuration knobs [exists]
@@ -350,12 +371,21 @@ Assistant settings live in `configs/assistant.json`, loaded by the frozen
 `omni.config.AssistantConfig`. Unknown keys and invalid values fail at startup;
 paths resolve relative to that file. `question_seconds` and `wake_phrase` stay
 in `configs/speech.json` (`3.0` and `null` respectively). Both assistant commands
-must exist in the speech grammar; startup checks this before opening devices.
+must exist in the speech grammar; startup checks this before opening devices and
+checks every phrase against registered handlers. Volume commands set absolute
+levels 1–5 (default 3), clamped at endpoints, and acknowledge the effective level.
+Mute suppresses ordinary TTS, preserves HIGH alerts and audible audio-control
+confirmations, and never disables STT. Duplicate command sequence numbers cannot
+repeat a volume mutation. The four haptic commands acknowledge "not available yet"
+at NORMAL priority with a 2 s TTL and log `command_unsupported`; no controller
+setting changes are claimed. `listening_tone: true` in speech config enables a
+short non-speech cue (provisional 60 ms / 880 Hz) through sounddevice before
+capture, outside the TTS/echo-guard path. Muted capture is still refused.
 
 | Key | Provisional default | Note |
 | --- | --- | --- |
 | `schema_version` | `1` | Reject unsupported versions |
-| `describe_command` | `describe` | Capture the following spoken question without a pre-capture prompt |
+| `describe_command` | `describe` | Play optional listening tone, then capture the following spoken question |
 | `direct_question_command` | `what's in front of me` | Skip capture and use the configured text prompt |
 | `direct_question_prompt` | `What is in front of me in the camera view?` | Used only in the text-only question part |
 | `max_scene_age_ms` | `500` | Input age at read and after encoding; older evidence is never sent |
@@ -365,10 +395,12 @@ must exist in the speech grammar; startup checks this before opening devices.
 | `omni_timeout_s` | `6.0` | Request budget is min(timeout, remaining answer lifetime); must be <= answer window |
 | `audit_log` | `../omni/artifacts/yibu_api_calls.jsonl` | Relative to config; client uses fixed purpose `sixth_sense_scene` |
 | `frame_jpeg_width` | `640` | Positive maximum upload width |
-| `cloud_enabled` | `false` | `--cloud` opts in; `OMNI_FAKE=1` selects fake; state announced and logged |
+| `cloud_enabled` | `false` | Application requires `--cloud` regardless of this stored default; `OMNI_FAKE=1` selects fake |
 
 The preview title is hardcoded as `YOLO Distances`; the CV loop exposes no title
-setting. Cloud state is audible and in the structured startup/status logs.
+setting. Cloud state is audible, logged, and overlaid as `cloud on / fake / off`, alongside
+camera source/quality/unavailability. The orchestrator supplies a callable to CV;
+CV does not import `main.py`.
 
 ## 10. Open decisions
 
@@ -394,8 +426,24 @@ setting. Cloud state is audible and in the structured startup/status logs.
   recognition to the speech enqueue handoff, excluding queue wait, Piper
   synthesis and physical playback onset. It is also recorded for unavailable
   or silently discarded results; status/reason distinguish those outcomes.
-  Prior vendor round trips exclude the recording window and playback; fake tests
-  establish no live latency claim.
+  `speech_started` events add `speech_started_ms` from recognition to the first
+  PCM block submitted to sounddevice, including queue wait and synthesis. This
+  software timestamp is not measured acoustic onset. Events join by session/seq;
+  cancelled, expired or muted utterances have no start measurement. Prior vendor
+  round trips exclude recording/playback; fake tests establish no live latency claim.
+
+  Aggregate a captured JSON-lines log (or stdin) with:
+
+  ```bash
+  python scripts/summarize_latency.py demo.log
+  cat demo.log | python scripts/summarize_latency.py -
+  ```
+
+  The offline script reports count, p50, p95 and max in milliseconds for each
+  field, grouped by status and `capture_ms > 0` (`describe` versus
+  `direct_question`). Percentiles use linear interpolation. Missing speech-start
+  observations stay null/count zero; malformed/non-event lines are ignored. The
+  fixture log in tests is synthetic, not a performance measurement.
 - The `omni/` ledger records token counts and latency, not correctness. A
   successful call proves the endpoint answered, not that the answer was
   grounded in the frame.
@@ -410,7 +458,7 @@ opts into one provider call with a generated drawing and no microphone/camera da
 It requires YIBU_API_KEY and has not been verified without credentials.
 
 Application results contain status, text, reason, call_id, and (for scene results)
-expires_at/source_mode. No exception text or media is logged. The isolated worker
+expires_at/source_mode/session_generation. No exception text or media is logged. The isolated worker
 collects only status and numeric usage from vendor audit callbacks; the parent
 writes once through the unchanged vendor ledger writer. Killing a worker leaves
 usage unknown, not zero. No automatic retries. Cloud access defaults to disabled.
@@ -419,17 +467,22 @@ Input freshness (0.5 s) and answer validity (6 s) are separate. Both the
 synthetic demo and real orchestrator use these defaults. Requests are capped by
 remaining answer lifetime and client timeout; speech TTL uses remaining answer
 lifetime. A camera session reset during a request discards the reply silently.
-Already queued speech is TTL-limited; continuous session monitoring/cancellation
-is not implemented. Closing prevents a pending worker from enqueuing more speech.
+Queued speech checks a per-result session/expiry predicate before playback and
+between output blocks. TTL must be finite and positive; expiration during
+synthesis suppresses playback. Closing prevents pending workers from enqueuing
+speech or reading reset scene state, including when the bounded join expires.
 
 `main.py` now wires recording, direct questions, status, stop-speaking, and one
-assistant worker per accepted question. Busy requests are dropped without speech
-or capture. Shutdown marks closing, joins for at most 2 s, shuts down speech, and
+assistant worker per accepted question. Busy requests say "Still answering"
+with a short NORMAL TTL only outside the accepted question's capture window;
+a queued acknowledgement is also guarded against a subsequent capture. Shutdown marks closing, joins for at most 2 s, shuts down speech, and
 resets the scene. Real camera/microphone/speaker rehearsal and live latency/accuracy
 evaluation remain unverified; scene calls stay off the CV and dispatcher threads.
 
-A covered lens still produces fresh frames: image-quality/occlusion detection is
-not implemented, so covering it does not guarantee "Camera view is unavailable".
-Unplugging may end or raise from the existing tracker, causing normal application
-cleanup rather than leaving a running preview with voice commands. Automatic camera
-reconnection and a persistent unavailable-preview state remain outside this change.
+The image-quality floor rejects black, saturated and low-contrast synthetic frames
+without a cloud call. General occlusion detection remains unimplemented. Live
+generator loss now resets scene/tracker sessions and retries with an explicit
+unavailable preview while voice stays running; replay EOF ends the application.
+Reconnect, queue cancellation, capture bounds, complete grammar dispatch and
+shutdown races are covered with headless fault injection. This is not physical
+camera, microphone, speaker or haptic validation.

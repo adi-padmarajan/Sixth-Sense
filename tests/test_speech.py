@@ -21,7 +21,9 @@ def wait_for(predicate, timeout=1.0):
 
 @pytest.fixture
 def service():
+    from unittest.mock import Mock
     svc = SpeechService()
+    svc.play_listening_tone = Mock()
     yield svc
     svc.shutdown()
 
@@ -628,3 +630,262 @@ def test_vosk_capture_bounds_and_not_running():
             stt.capture(bad)
     stt._running.clear()
     assert stt.capture(1.0) is None
+
+
+@pytest.mark.parametrize('value', [0, 6, True, 1.5])
+def test_volume_rejects_invalid_absolute_levels(service, value):
+    service.attach(tts=FakeTTS(), stt=FakeSTT())
+    with pytest.raises(ValueError):
+        service.set_volume(value)
+
+
+def test_mute_preserves_microphone_and_high_alerts(service):
+    tts, stt = FakeTTS(), FakeSTT()
+    service.attach(tts=tts, stt=stt, config=SpeechConfig(echo_guard_seconds=0))
+    service.set_muted(True)
+    assert not stt.muted and stt.started
+    assert not service.speak('narration', Priority.LOW)
+    assert service.speak('alert', Priority.HIGH)
+    assert tts.wait_idle(1)
+    assert tts.spoken == ['alert']
+    assert wait_for(lambda: not stt.muted)
+    service.set_muted(False)
+    assert service.speak('sound restored')
+    assert tts.wait_idle(1)
+    assert tts.spoken[-1] == 'sound restored'
+
+
+def test_listening_tone_precedes_capture_without_echo_mute(service):
+    from unittest.mock import Mock
+    stt = FakeSTT()
+    service.attach(tts=FakeTTS(), stt=stt)
+    order = []
+    service.play_listening_tone = lambda: order.append(('tone', stt.muted, stt.is_capturing))
+    capture = stt.capture
+    stt.capture = lambda seconds: (order.append(('capture', stt.muted, stt.is_capturing)) or capture(seconds))
+    service._on_speak_start = Mock()
+    assert service.capture_question(.1).startswith(b'RIFF')
+    assert order == [('tone', False, False), ('capture', False, False)]
+    service._on_speak_start.assert_not_called()
+
+
+def test_tone_disabled_and_muted_capture_emit_nothing(service):
+    stt = FakeSTT()
+    service.attach(stt=stt, config=SpeechConfig(listening_tone=False))
+    assert service.capture_question(.1)
+    service.play_listening_tone.assert_not_called()
+    service.config = SpeechConfig(listening_tone=True)
+    stt.set_muted(True)
+    assert service.capture_question(.1) is None
+    service.play_listening_tone.assert_not_called()
+
+
+def test_high_alert_during_tone_prevents_capture(service):
+    stt = FakeSTT()
+    service.attach(stt=stt)
+    service.play_listening_tone = lambda: stt.set_muted(True)
+    assert service.capture_question(.1) is None
+    assert not stt.capture_calls
+
+
+def test_real_tone_uses_direct_output_stream(monkeypatch):
+    from unittest.mock import Mock
+    import sounddevice
+    from unittest.mock import MagicMock
+    output = MagicMock()
+    monkeypatch.setattr(sounddevice, 'OutputStream', output)
+    service = SpeechService()
+    service.play_listening_tone()
+    samples = output.return_value.__enter__.return_value.write.call_args.args[0]
+    assert len(samples) == 960 and samples.dtype.name == 'float32'
+    assert abs(samples).max() <= .08
+    assert service._unmute_timer is None
+
+
+@pytest.mark.parametrize('changes', [{'listening_tone': 'true'}, {'echo_guard_seconds': float('nan')},
+                                     {'dedup_window_seconds': float('nan')}, {'wake_window_seconds': float('inf')}])
+def test_config_rejects_nonfinite_timing_and_nonbool_tone(changes):
+    with pytest.raises(ValueError):
+        SpeechConfig(**changes)
+
+
+def test_speech_callback_after_synthesis_and_pcm_volume(monkeypatch):
+    from unittest.mock import Mock
+    from types import SimpleNamespace
+    import numpy as np
+    from speech.tts import PiperTTS, QueuedTTS
+    # Exercise real Piper playback code with synthetic PCM and a fake stream.
+    tts = PiperTTS.__new__(PiperTTS)
+    QueuedTTS.__init__(tts)
+    stream = Mock()
+    tts._stream = stream
+    tts.write_block_samples = 2
+    order = []
+    def synthesize(text):
+        order.append('synthesis')
+        yield SimpleNamespace(audio_int16_array=np.array([1000, -1000, 500, -500], dtype=np.int16))
+    tts.voice = SimpleNamespace(synthesize=synthesize)
+    stream.write.side_effect = lambda _: order.append('write')
+    tts.set_volume(2)
+    tts.speak('example', on_started=lambda _: order.append('started'))
+    tts.start()
+    try:
+        assert tts.wait_idle(1)
+        assert order == ['synthesis', 'started', 'write', 'write']
+        np.testing.assert_array_equal(stream.write.call_args_list[0].args[0], [400, -400])
+    finally:
+        tts.shutdown()
+
+
+def test_cancel_after_dequeue_cannot_restart_item():
+    tts = FakeTTS()
+    original_get = tts._queue.get
+    popped, release = threading.Event(), threading.Event()
+    def paused_get(*args, **kwargs):
+        item = original_get(*args, **kwargs)
+        popped.set()
+        assert release.wait(2)
+        return item
+    tts._queue.get = paused_get
+    tts.speak('must remain cancelled')
+    tts.start()
+    try:
+        assert popped.wait(1)
+        tts.cancel_all()
+        release.set()
+        tts.shutdown()
+        assert tts.spoken == []
+    finally:
+        release.set()
+        tts.shutdown()
+
+
+def test_expired_during_synthesis_never_starts_playback():
+    from unittest.mock import Mock
+    clock = FakeClock()
+    callback = Mock()
+    class SlowSynthesis(FakeTTS):
+        def _synthesize_and_play(self, text, should_stop):
+            clock.now += 2
+            super()._synthesize_and_play(text, should_stop)
+    tts = SlowSynthesis(clock=clock)
+    tts.speak('expired', ttl_seconds=1, on_started=callback)
+    tts.start()
+    try:
+        assert tts.wait_idle(1)
+        assert tts.spoken == []
+        callback.assert_not_called()
+    finally:
+        tts.shutdown()
+
+
+def test_capture_buffer_bounds_oversized_block():
+    from speech.stt import _CaptureBuffer
+    buf = _CaptureBuffer(32, 3)
+    buf.append(bytes(500))
+    buf.append(bytes(500))
+    assert buf.size == 32 and len(buf.blocks) == 1
+    assert len(buf.pcm()) == 32
+
+
+def test_stopping_stt_abandons_capture_and_requests_reset():
+    from unittest.mock import Mock
+    stt = _bare_vosk_stt()
+    stt._stream, stt._worker = Mock(), None
+    stream = stt._stream
+    result = {}
+    worker = threading.Thread(target=lambda: result.update(wav=stt.capture(3, timeout=2)))
+    worker.start()
+    assert wait_for(lambda: stt.is_capturing)
+    stt.stop()
+    worker.join(1)
+    assert not worker.is_alive() and result['wav'] is None
+    assert stt._reset_pending.is_set()
+    stream.close.assert_called_once()
+
+
+def test_failed_stt_start_closes_allocated_stream():
+    from unittest.mock import Mock
+    stt = _bare_vosk_stt()
+    stt._running.clear()
+    stt.device = None
+    stream = Mock()
+    stream.start.side_effect = RuntimeError('start failure')
+    stt._sd = Mock(RawInputStream=Mock(return_value=stream))
+    with pytest.raises(RuntimeError):
+        stt.start()
+    stream.close.assert_called_once()
+    assert stt._stream is None and not stt._running.is_set()
+
+
+def test_capture_discards_queued_precapture_audio():
+    stt = _bare_vosk_stt()
+    stt._audio_q.put(b'old speech')
+    assert stt.capture(.1, timeout=.01) is None
+    assert stt._audio_q.empty() and stt._reset_pending.is_set()
+
+
+def test_shutdown_does_not_create_late_unmute_timer(service):
+    service._closing.set()
+    service._on_speak_end()
+    assert service._unmute_timer is None
+
+
+def test_dedup_history_bounded_even_for_high_priority():
+    tts = FakeTTS()
+    for number in range(100):
+        tts.speak(f'alert {number}', Priority.HIGH)
+    assert len(tts._recent) <= 64
+    tts.shutdown()
+
+
+def test_full_queue_reports_rejected_new_item():
+    tts = FakeTTS(max_queue=1)
+    assert tts.speak('alert', Priority.HIGH)
+    assert not tts.speak('discarded', Priority.LOW)
+    tts.shutdown()
+
+
+def test_speak_end_callback_failure_does_not_kill_worker(caplog):
+    from unittest.mock import Mock
+    faults = []
+    tts = FakeTTS(on_speak_start=Mock(), on_speak_end=Mock(side_effect=RuntimeError('private details')),
+                  on_fault=faults.append)
+    try:
+        tts.speak('first')
+        tts.speak('second')
+        tts.start()
+        assert wait_for(lambda: len(faults) == 2)
+        assert tts.spoken == ['first', 'second']
+        assert 'reason=on_speak_end_failed' in caplog.text
+        assert 'private details' not in caplog.text
+    finally:
+        tts.shutdown()
+
+
+def test_recognizer_reset_failure_is_reported_and_retried(caplog):
+    from unittest.mock import Mock
+    stt = _bare_vosk_stt()
+    stt.on_fault = Mock()
+    stt.recognizer = Mock()
+    stt.recognizer.Reset.side_effect = [RuntimeError('private details'), None]
+    stt.recognizer.AcceptWaveform.side_effect = lambda _: (stt._running.clear() or False)
+    stt._reset_pending.set()
+    stt._audio_q.put(b'first')
+    stt._audio_q.put(b'second')
+    stt._run()
+    assert stt.recognizer.Reset.call_count == 2
+    stt.recognizer.AcceptWaveform.assert_called_once_with(b'second')
+    stt.on_fault.assert_called_once_with('recognition_failed')
+    assert 'reason=recognition_failed' in caplog.text
+    assert 'private details' not in caplog.text
+
+
+def test_stopping_between_capture_check_and_arm_refuses_wait():
+    from unittest.mock import Mock
+    stt = _bare_vosk_stt()
+    stt._drain_audio = Mock(side_effect=stt._running.clear)
+    started = time.monotonic()
+    assert stt.capture(3) is None
+    assert time.monotonic() - started < .5
+    assert stt._reset_pending.is_set() and not stt.is_capturing

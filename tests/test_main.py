@@ -44,13 +44,15 @@ def build(caplog):
         cfg = AssistantConfig.load("configs/assistant.json")
         speech_cfg = SpeechConfig.load("configs/speech.json", require_models=False).replace(echo_guard_seconds=0)
         service = SpeechService()
+        service.play_listening_tone = Mock()
         tts, stt = FakeTTS(), stt or FakeSTT()
         service.attach(tts=tts, stt=stt, config=speech_cfg)
         service.speak = Mock(wraps=service.speak)
         service.stop_speaking = Mock(wraps=service.stop_speaking)
         client = client or FakeOmniClient()
         state = SceneState()
-        frame = np.zeros((240, 320, 3), dtype=np.uint8)
+        frame = np.full((240, 320, 3), 64, dtype=np.uint8)
+        frame[120:] = 192
         boxes = SimpleNamespace(xyxy=np.array([[26., 36., 99., 214.]]), cls=np.array([0]),
                                 conf=np.array([0.71]), id=None) if detections else None
         if populated:
@@ -113,14 +115,14 @@ def test_capture_failure_never_calls_client(build, caplog):
     assert item.service.speak.call_args.kwargs["ttl_seconds"] == 2
 
 
-def test_busy_question_is_dropped_without_capture_or_speech(build, caplog):
+def test_busy_question_during_request_acknowledges_without_capture(build, caplog):
     client = BlockedClient()
     item = build(client=client)
     item.stt.inject("describe")
-    item.stt.inject("describe")
     assert client.entered.wait(1)
+    item.stt.inject("describe")
     assert wait_for(lambda: events(caplog, "question_dropped"))
-    assert item.tts.spoken == []
+    assert wait_for(lambda: item.tts.spoken == ["Still answering."])
     assert item.stt.capture_calls == [3.0]
     assert client.calls == 1
     dropped = events(caplog, "question_dropped")[0]
@@ -128,7 +130,7 @@ def test_busy_question_is_dropped_without_capture_or_speech(build, caplog):
     client.release.set()
     assert wait_for(lambda: not item.orch.question_in_flight)
     assert item.tts.wait_idle(1)
-    assert item.tts.spoken == [client.text]
+    assert item.tts.spoken == ["Still answering.", client.text]
 
 
 def test_camera_session_reset_discards_answer_silently(build, caplog):
@@ -169,7 +171,7 @@ def test_disabled_cloud_status_is_normal_priority(build):
     assert item.service.speak.call_args.kwargs["priority"] == Priority.NORMAL
 
 
-@pytest.mark.parametrize("populated,camera", [(True, "camera live"), (False, "camera unavailable")])
+@pytest.mark.parametrize("populated,camera", [(True, "camera simulated"), (False, "camera unavailable")])
 def test_status_reports_listening_fault_and_camera(build, populated, camera):
     item = build(populated=populated)
     item.stt.fail("x")
@@ -277,7 +279,7 @@ def test_missing_grammar_command_fails_construction(command):
     (False, True, "on", True),
     (True, True, "fake", False),
 ])
-def test_cli_startup_replay_stt_fault_and_cleanup(monkeypatch, caplog, fake, cloud, cloud_state, interrupt):
+def test_cli_startup_replay_stt_fault_and_cleanup(monkeypatch, caplog, fake, cloud, cloud_state, interrupt, tmp_path):
     import main as app
 
     caplog.set_level("INFO", logger="sixth_sense.orchestrator")
@@ -290,11 +292,12 @@ def test_cli_startup_replay_stt_fault_and_cleanup(monkeypatch, caplog, fake, clo
         stt.fail("test_mic_fault")
         return dict(service.health)
 
-    def preview(state):
+    def preview(state, *, preview_status):
+        assert preview_status() == cloud_state
         observed["state"] = state
         assert threading.current_thread() is threading.main_thread()
         assert service.health["stt"] == "fault"
-        assert stub.SOURCE == "test-video.mp4"
+        assert stub.SOURCE == str(replay)
         state.update(np.zeros((12, 30, 3), dtype=np.uint8), None, {}, "replay")
         if interrupt:
             raise KeyboardInterrupt
@@ -307,8 +310,12 @@ def test_cli_startup_replay_stt_fault_and_cleanup(monkeypatch, caplog, fake, clo
     monkeypatch.setattr(app.OmniClient, "complete", Mock(side_effect=AssertionError("no network in startup test")))
     monkeypatch.delenv("YIBU_API_KEY", raising=False)
     monkeypatch.setenv("OMNI_FAKE", "1" if fake else "0")
+    # A stored cloud setting cannot bypass explicit CLI consent.
+    monkeypatch.setattr(app.AssistantConfig, "load", lambda path: AssistantConfig(cloud_enabled=True))
     service.speak = Mock(wraps=service.speak)
-    assert app.main(["--source", "test-video.mp4"] + (["--cloud"] if cloud else [])) == 0
+    replay = tmp_path / "test-video.mp4"
+    replay.touch()
+    assert app.main(["--source", str(replay)] + (["--cloud"] if cloud else [])) == 0
     service.speak.assert_called_once_with(f"system ready. cloud {cloud_state}.", Priority.NORMAL)
     assert not stt.started and service.health == {"tts": "unavailable", "stt": "unavailable"}
     assert observed["state"].read() is None
@@ -322,3 +329,119 @@ def test_cli_startup_replay_stt_fault_and_cleanup(monkeypatch, caplog, fake, clo
     assert bool(warnings) == (cloud and not fake)
     if warnings:
         assert warnings[0]["reason"] == "not_configured"
+
+
+def test_all_grammar_phrases_have_handlers(build):
+    item = build()
+    assert set(item.speech_cfg.grammar) <= item.service.handled_commands
+
+
+def test_unknown_grammar_fails_before_opening_devices(monkeypatch):
+    import main as app
+    cfg = SpeechConfig.load('configs/speech.json', require_models=False)
+    monkeypatch.setattr(app.SpeechConfig, 'load', lambda _: cfg.replace(grammar=cfg.grammar + ('new phrase',)))
+    configure = Mock()
+    monkeypatch.setattr(app.speech, 'configure', configure)
+    monkeypatch.setattr(app.speech, 'shutdown', Mock())
+    with pytest.raises(ValueError, match='without handlers'):
+        app.main([])
+    configure.assert_not_called()
+
+
+@pytest.mark.parametrize('phrase', ['pause feedback', 'resume feedback', 'increase sensitivity', 'decrease sensitivity'])
+def test_controller_commands_acknowledge_unsupported(build, caplog, phrase):
+    item = build()
+    item.stt.inject(phrase)
+    assert wait_for(lambda: item.tts.spoken)
+    assert item.tts.spoken == ['Haptic controls are not available yet.']
+    assert item.service.speak.call_args.kwargs['ttl_seconds'] == 2
+    assert item.service.speak.call_args.kwargs['priority'] == Priority.NORMAL
+    assert events(caplog, 'command_unsupported')[0]['command'] == phrase
+    assert item.client.calls == 0
+
+
+def test_audio_controls_effective_bounds_mute_and_duplicate(build):
+    from speech import Command
+    item = build()
+    for seq, phrase, level in [(0, 'volume up', 4), (1, 'volume up', 5),
+                              (2, 'volume up', 5), (3, 'volume down', 4),
+                              (4, 'mute', 4), (5, 'sound on', 4)]:
+        cmd = Command(phrase, seq, time.monotonic(), time.monotonic(), 'simulated')
+        item.orch.set_audio(cmd)
+        assert item.tts.wait_idle(1)
+        assert wait_for(lambda: not item.stt.muted)
+        assert item.service.volume_level == level
+        assert item.service.muted == (phrase == 'mute')
+        item.orch.set_audio(cmd)  # same absolute mutation must not be applied twice
+        assert item.service.volume_level == level
+    assert any('Volume 4 of 5' in text for text in item.tts.spoken)
+    assert 'Sound muted. High priority alerts remain on.' in item.tts.spoken
+    assert 'Sound on. Volume 4 of 5.' in item.tts.spoken
+    item.service.set_volume(1)
+    item.orch.set_audio(Command('volume down', 6, time.monotonic(), time.monotonic(), 'simulated'))
+    assert item.service.volume_level == 1
+
+
+def test_busy_during_capture_remains_silent(build, caplog):
+    release, entered = threading.Event(), threading.Event()
+
+    class SlowCapture(FakeSTT):
+        def capture(self, seconds, **kwargs):
+            entered.set()
+            assert release.wait(3)
+            return super().capture(seconds, **kwargs)
+
+    item = build(stt=SlowCapture())
+    try:
+        item.stt.inject('describe')
+        assert entered.wait(1)
+        item.stt.inject('describe')
+        assert wait_for(lambda: events(caplog, 'question_dropped'))
+        assert item.tts.spoken == []
+        assert not item.stt.muted
+        assert item.orch._capturing.is_set()
+    finally:
+        release.set()
+
+
+def test_status_after_reset_reports_camera_unavailable(build):
+    item = build()
+    item.state.reset()
+    item.orch.say_status()
+    assert wait_for(lambda: item.tts.spoken)
+    assert 'camera unavailable' in item.tts.spoken[0]
+
+
+def test_worker_outliving_join_cannot_touch_state_or_enqueue(build, monkeypatch, caplog):
+    client = BlockedClient()
+    item = build(client=client)
+    item.stt.inject('describe')
+    assert client.entered.wait(1)
+    # Force the join-timeout path deterministically, then shut down/reset in
+    # exactly main() order while the request still owns an old snapshot.
+    worker = item.orch._worker
+    real_join = worker.join
+    monkeypatch.setattr(worker, 'join', Mock())
+    item.orch.close()
+    worker.join.assert_called_once_with(timeout=2)
+    item.service.shutdown()
+    item.state.reset()
+    monkeypatch.setattr(item.state, 'read', Mock(side_effect=AssertionError('read after close')))
+    from unittest.mock import PropertyMock
+    monkeypatch.setattr(SceneState, 'session_generation', PropertyMock(side_effect=AssertionError('generation after close')))
+    client.release.set()
+    real_join(1)
+    assert not worker.is_alive()
+    assert item.tts.spoken == []
+    assert events(caplog, 'question_completed')[-1]['reason'] == 'closing'
+    assert not events(caplog, 'question_failed')
+
+
+def test_speech_start_logged_separately_from_enqueue(build, caplog):
+    item = build()
+    item.stt.inject("what's in front of me")
+    assert wait_for(lambda: events(caplog, 'speech_started'))
+    started = events(caplog, 'speech_started')[0]
+    assert started['seq'] == 0 and started['session_id'] == 'test-session'
+    assert started['speech_started_ms'] >= 0
+    assert 'text' not in started

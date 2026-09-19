@@ -1,0 +1,9 @@
+{"event":"startup","step":"ready"}
+local backend informational message
+{"event":"speech_started","session_id":"synthetic","seq":1,"speech_started_ms":150}
+{"event":"question_completed","session_id":"synthetic","seq":1,"capture_ms":0,"assistant_ms":50,"total_ms":100,"status":"success","reason":null}
+{"event":"question_completed","session_id":"synthetic","seq":2,"capture_ms":0,"assistant_ms":150,"total_ms":200,"status":"success","reason":null}
+{"event":"speech_started","session_id":"synthetic","seq":2,"speech_started_ms":250}
+{"event":"question_completed","session_id":"synthetic","seq":3,"capture_ms":3000,"assistant_ms":500,"total_ms":3500,"status":"success","reason":null}
+{"event":"question_completed","session_id":"synthetic","seq":4,"capture_ms":0,"assistant_ms":0,"total_ms":10,"status":"unavailable","reason":"missing_or_stale_scene"}
+{"event":"question_completed","session_id":"synthetic","seq":5,"capture_ms":3000,"assistant_ms":null,"total_ms":3005,"status":"unavailable","reason":"capture_failed"}

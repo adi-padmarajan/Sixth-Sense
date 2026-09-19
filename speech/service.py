@@ -131,9 +131,9 @@ class SpeechService:
                 max_queue=config.max_queue,
                 dedup_window_seconds=config.dedup_window_seconds,
             )
-        except Exception as exc:  # noqa: BLE001
-            log.exception("speech: failed to load TTS backend")
-            self._set_health("tts", "fault", f"load_failed: {exc}")
+        except Exception:  # noqa: BLE001
+            log.warning("speech_fault subsystem=tts reason=load_failed")
+            self._set_health("tts", "fault", "load_failed")
         try:
             stt = VoskSTT(
                 config.stt_model_path,
@@ -143,9 +143,9 @@ class SpeechService:
                 blocksize=config.blocksize,
                 max_capture_seconds=config.max_capture_seconds,
             )
-        except Exception as exc:  # noqa: BLE001
-            log.exception("speech: failed to load STT backend")
-            self._set_health("stt", "fault", f"load_failed: {exc}")
+        except Exception:  # noqa: BLE001
+            log.warning("speech_fault subsystem=stt reason=load_failed")
+            self._set_health("stt", "fault", "load_failed")
 
         return self.attach(tts=tts, stt=stt, config=config)
 
@@ -187,9 +187,9 @@ class SpeechService:
                     self._set_health("stt", "partial", f"unsupported_phrases: {unsupported}")
                 else:
                     self._set_health("stt", "ready")
-            except Exception as exc:  # noqa: BLE001
-                log.exception("speech: failed to start STT")
-                self._set_health("stt", "fault", f"start_failed: {exc}")
+            except Exception:  # noqa: BLE001
+                log.warning("speech_fault subsystem=stt reason=start_failed")
+                self._set_health("stt", "fault", "start_failed")
 
         if self._dispatcher is None:
             self._dispatcher = threading.Thread(
@@ -220,6 +220,8 @@ class SpeechService:
 
     def _on_speak_end(self):
         with self._timer_lock:
+            if self._closing.is_set():
+                return
             if self._unmute_timer:
                 self._unmute_timer.cancel()
             self._unmute_timer = threading.Timer(self._echo_guard_seconds, self._unmute_stt)
@@ -238,13 +240,43 @@ class SpeechService:
         priority: Priority = Priority.NORMAL,
         interrupt: bool = False,
         ttl_seconds: Optional[float] = None,
+        *, on_started: Optional[Callable[[float], None]] = None,
+        is_valid: Optional[Callable[[], bool]] = None,
+        bypass_mute: bool = False,
     ) -> bool:
         """Queue `text`. Returns False (and logs) if no TTS is available or
         the text was suppressed as a recent repeat."""
-        if self._tts is None:
+        if self._closing.is_set() or self._tts is None:
             log.warning("speech: TTS unavailable; not speaking %r", text)
             return False
-        return self._tts.speak(text, priority=priority, interrupt=interrupt, ttl_seconds=ttl_seconds)
+        return self._tts.speak(text, priority=priority, interrupt=interrupt, ttl_seconds=ttl_seconds,
+                               on_started=on_started, is_valid=is_valid, bypass_mute=bypass_mute)
+
+    @property
+    def volume_level(self) -> int:
+        return self._tts.volume_level if self._tts is not None else 3
+
+    @property
+    def muted(self) -> bool:
+        return bool(self._tts is not None and self._tts.muted)
+
+    def set_volume(self, level: int) -> int:
+        if type(level) is not int or not 1 <= level <= 5:
+            raise ValueError("volume level must be an integer in 1..5")
+        if self._tts is None:
+            raise RuntimeError("tts_unavailable")
+        return self._tts.set_volume(level)
+
+    def set_muted(self, muted: bool) -> None:
+        if type(muted) is not bool:
+            raise ValueError("muted must be boolean")
+        if self._tts is None:
+            raise RuntimeError("tts_unavailable")
+        self._tts.set_muted(muted)
+
+    @property
+    def handled_commands(self) -> frozenset[str]:
+        return frozenset(k for k, handlers in self._handlers.items() if handlers)
 
     def stop_speaking(self):
         """Cancel current playback and everything queued."""
@@ -274,9 +306,34 @@ class SpeechService:
         handler: that runs on the dispatcher thread, which must return
         promptly. The orchestrator spawns a worker thread that calls
         capture_question() and then hands the bytes to omni.scene."""
-        if self._stt is None or self.health.get("stt") not in ("ready", "partial"):
+        if (self._closing.is_set() or self._stt is None
+                or self.health.get("stt") not in ("ready", "partial")
+                or self._stt.muted or self.is_capturing):
             return None
+        if not 0 < seconds <= self.config.max_capture_seconds:
+            raise ValueError("capture seconds outside configured bounds")
+        if self.config.listening_tone:
+            try:
+                self.play_listening_tone()
+            except Exception:
+                log.warning("listening_tone_failed reason=audio_output_failed")
         return self._stt.capture(seconds)
+
+    def play_listening_tone(self):
+        """Provisional 60 ms / 880 Hz cue, complete before capture; bypasses TTS.
+
+        A dedicated stream avoids sounddevice.play() stopping unrelated playback.
+        No device is opened on import.
+        """
+        import numpy as np
+        import sounddevice as sd
+
+        rate = self.config.samplerate
+        t = np.arange(int(rate * 0.06)) / rate
+        samples = (0.08 * np.sin(2 * np.pi * 880 * t) * np.hanning(len(t))).astype("float32")
+        with sd.OutputStream(samplerate=rate, channels=1, dtype="float32",
+                             device=self.config.tts_device) as stream:
+            stream.write(samples)
 
     def _on_recognized(self, text: str, recognized_at: float, source_mode: str):
         # Called on the STT thread: enqueue only, never run handlers here.
@@ -322,7 +379,7 @@ class SpeechService:
                 try:
                     handler(cmd)
                 except Exception:  # noqa: BLE001
-                    log.exception("speech: handler for %r raised (%s)", cmd.text, tag)
+                    log.warning("speech_command_failed reason=handler_failed (%s)", tag)
 
     def _arming_allows(self, cmd: Command) -> bool:
         """Wake-phrase gate. Runs on the dispatcher thread only."""

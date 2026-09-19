@@ -78,8 +78,9 @@ class DetectionTests(unittest.TestCase):
         self.assertEqual(detection.conf, 0.8)
 
     def test_unknown_class_is_not_given_an_invented_label(self):
-        with self.assertRaises(KeyError):
-            detections_from_result(fake_boxes([[0, 0, 2, 2]]), {}, 30)
+        with self.assertLogs("scene_state", level="WARNING") as logs:
+            self.assertEqual(detections_from_result(fake_boxes([[0, 0, 2, 2]]), {}, 30), [])
+        self.assertIn("reason=unknown_class_id", logs.output[0])
 
     def test_invalid_width_rejected(self):
         for width in (0, -1, np.nan, np.inf):
@@ -287,7 +288,7 @@ class WiringTests(unittest.TestCase):
                     return np.full_like(original, 255)
 
                 result.plot = plot
-                model = Mock(names={7: "chair"})
+                model = Mock(names={7: "chair"}, predictor=None)
                 model.track.return_value = iter([result])
                 with patch.object(tracking, "MODEL_PATH") as path, \
                         patch.object(tracking, "YOLO", return_value=model), \
@@ -299,7 +300,7 @@ class WiringTests(unittest.TestCase):
                     tracking.main(state)
                 self.assertEqual(len(observed), 1)
                 self.assertTrue((observed[0].frame == 0).all())
-                self.assertTrue((show.call_args.args[1] == 255).all())
+                self.assertEqual(show.call_args.args[1].shape, original.shape)
                 cleanup.assert_called_once()
                 self.assertIsNone(state.read())
 
@@ -309,7 +310,7 @@ class WiringTests(unittest.TestCase):
         state = SceneState()
         result = SimpleNamespace(orig_img=np.zeros((6, 30, 3), dtype=np.uint8),
                                  boxes=None, plot=Mock(side_effect=RuntimeError("plot failed")))
-        model = Mock(names={})
+        model = Mock(names={}, predictor=None)
         model.track.return_value = iter([result])
         with patch.object(tracking, "MODEL_PATH") as path, \
                 patch.object(tracking, "YOLO", return_value=model), \

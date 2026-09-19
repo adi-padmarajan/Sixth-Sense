@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, replace
 import math
+import logging
 from threading import Lock
 import time
 from typing import Callable, Literal
@@ -11,6 +12,25 @@ import numpy as np
 
 SourceMode = Literal["live", "replay", "simulated"]
 Region = Literal["left", "center", "right"]
+Quality = Literal["ok", "too_dark", "too_bright", "low_contrast"]
+log = logging.getLogger(__name__)
+# Provisional bench values on 8-bit luminance, not calibrated image usability.
+LUMINANCE_FLOOR = 16.0
+LUMINANCE_CEILING = 240.0
+CONTRAST_FLOOR = 8.0
+
+
+def image_quality(frame: np.ndarray) -> Quality:
+    # BGR weights sum to 256, so grayscale boundary values remain exact.
+    luminance = (frame.astype(np.float64) * (29, 150, 77)).sum(axis=2) / 256
+    mean = float(luminance.mean())
+    if mean < LUMINANCE_FLOOR:
+        return "too_dark"
+    if mean > LUMINANCE_CEILING:
+        return "too_bright"
+    if float(luminance.std()) < CONTRAST_FLOOR:
+        return "low_contrast"
+    return "ok"
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +43,7 @@ class Detection:
     xyxy: tuple[float, float, float, float]
     track_id: int | None
     region: Region
+    mirrored: bool = False
 
 
 class _ReadOnlyDetections(list[Detection]):
@@ -52,9 +73,10 @@ class SceneSnapshot:
     source_mode: SourceMode
     sequence: int
     session_generation: int = 0
+    quality: Quality = "ok"
 
 
-def detections_from_result(boxes, names, width: int) -> list[Detection]:
+def detections_from_result(boxes, names, width: int, *, mirrored: bool = False) -> list[Detection]:
     """Extract boxes using only the supplied checkpoint's class map.
 
     For centre x, left is x < width/3, center is width/3 <= x < 2*width/3,
@@ -64,6 +86,8 @@ def detections_from_result(boxes, names, width: int) -> list[Detection]:
     """
     if not math.isfinite(width) or width <= 0:
         raise ValueError("Image width must be positive and finite")
+    if type(mirrored) is not bool:
+        raise ValueError("mirrored must be boolean")
     if boxes is None:
         return []
 
@@ -81,16 +105,27 @@ def detections_from_result(boxes, names, width: int) -> list[Detection]:
             continue
         if not math.isfinite(class_id) or not math.isfinite(conf):
             continue
+        if class_id < 0 or int(class_id) != class_id:
+            log.warning("detection_skipped reason=invalid_class_id")
+            continue
         class_id = int(class_id)
+        try:
+            class_name = names[class_id]
+        except (KeyError, IndexError):
+            log.warning("detection_skipped reason=unknown_class_id class_id=%d", class_id)
+            continue
         center_x = x0 / 2 + x1 / 2
         region = "left" if center_x < width / 3 else "center" if center_x < 2 * width / 3 else "right"
+        if mirrored:
+            region = {"left": "right", "center": "center", "right": "left"}[region]
         detections.append(Detection(
             class_id=class_id,
-            class_name=names[class_id],
+            class_name=class_name,
             conf=float(conf),
             xyxy=xyxy,
             track_id=int(track_id) if track_id is not None and math.isfinite(track_id) else None,
             region=region,
+            mirrored=mirrored,
         ))
     return detections
 
@@ -126,7 +161,7 @@ class SceneState:
         """Reset counter for consumers to reject in-flight results from an old session."""
         return self._session_generation
 
-    def update(self, frame, boxes, names, source_mode: SourceMode) -> None:
+    def update(self, frame, boxes, names, source_mode: SourceMode, *, mirrored: bool = False) -> None:
         """Copy and publish the original BGR frame, timestamped before processing."""
         with self._write_lock:
             captured_at = self._clock()
@@ -137,14 +172,14 @@ class SceneState:
                     or frame.dtype != np.uint8):
                 raise ValueError("Expected a non-empty uint8 BGR frame with shape (H, W, 3)")
             height, width = frame.shape[:2]
-            detections = _ReadOnlyDetections(detections_from_result(boxes, names, width))
+            detections = _ReadOnlyDetections(detections_from_result(boxes, names, width, mirrored=mirrored))
             # bytes owns the pixels: neither source reuse nor setflags(write=True)
             # can mutate published data. No JPEG encoding, resizing, or annotation.
             frozen_frame = np.frombuffer(frame.tobytes(), dtype=frame.dtype).reshape(frame.shape)
             sequence = self._sequence + 1
             snapshot = SceneSnapshot(
                 frozen_frame, captured_at, width, height, detections, source_mode, sequence,
-                self._session_generation,
+                self._session_generation, image_quality(frozen_frame),
             )
             self._sequence = sequence
             self._latest = snapshot

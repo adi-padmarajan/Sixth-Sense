@@ -29,7 +29,8 @@ the vendor `chat_completion` internally. There are no media temp files.
 
 Results contain `status` (`success` or `unavailable`), user-facing `text`, an
 optional machine-readable `reason`, and optional audit `call_id`. Scene results
-also carry `expires_at` (same monotonic clock as SceneState) and `source_mode`.
+also carry `expires_at` (same monotonic clock as SceneState), `source_mode`, and
+`session_generation`.
 Unavailable reasons include disabled cloud, missing configuration, invalid input,
 busy, deadline, network/HTTP errors, empty response, failed auditing, and absent,
 expired, or reset scene evidence. No exception message or request body is logged.
@@ -55,22 +56,26 @@ expired, or reset scene evidence. No exception message or request body is logged
   `audit_failed` instead of claiming success.
 - Scene freshness is checked before/after JPEG encoding and after the response.
   The request budget is capped by that snapshot's remaining lifetime. The default
-  0.5 s scene budget is deliberately strict and may reject real cloud calls; tune
-  it only after measuring. The synthetic demo explicitly uses 5 s.
+  input age limit is 0.5 s; the separate answer window is 6 s. These are provisional
+  settings, not measured guarantees.
 - SceneState's `session_generation` invalidates in-flight responses after reset;
   advancing ordinary frame sequence does not change the session. Frame data is
   read only once per request. Age still measures YOLO result receipt, not exposure.
-- Empty detections produce a local statement that unrecognized objects may still
-  be present. No cloud call is made, and no all-clear is inferred. For nonempty
-  scenes the model is prompted to acknowledge uncertainty; this does not prove
-  its response is correct or prevent every hallucination/prompt injection.
+- Non-`ok` image quality returns `unavailable("low_quality")` with camera-unavailable
+  wording before JPEG encoding or cloud access. The CV floor uses provisional mean
+  luminance/contrast thresholds; it is not a general occlusion detector.
+- Empty detections may still send a fresh, adequate-quality image, with explicit
+  `none` evidence and a warning that this does not establish clear space. The model
+  is prompted to acknowledge uncertainty; this does not prove response correctness.
 
 `describe_and_speak(state, client, speech, ...)` hands the result to the existing
 SpeechService at LOW priority for scene descriptions and NORMAL for unavailable
-status. The queue TTL is bounded by remaining scene lifetime. A future orchestrator
-must cancel queued speech on session reset; the current speech queue does not
-support a per-scene generation predicate. Microphone recording, wake-handler
-registration, camera startup, and a top-level orchestrator remain future work.
+status. TTL must be finite and positive and is bounded by remaining scene lifetime.
+A per-scene predicate checks generation and expiry before enqueue, before playback,
+and between audio blocks. Root `main.py` wires recording and every grammar handler,
+camera startup/reconnect, status, bounded shutdown and one assistant worker. Busy
+questions get a short acknowledgement only outside capture. The application sends
+media only with `--cloud`; `OMNI_FAKE=1` stays local.
 
 ### Run the complete synthetic demo
 
@@ -108,7 +113,7 @@ This set of samples has no built-in key, does not read key files from the reposi
 
 ## Installation
 
-From the repo root, in the project venv (`httpx` and `websockets` are listed in the top-level `requirements.txt`):
+From the repo root, using conda base `/opt/anaconda3/bin/python` (the unused `omni/.venv` has been removed) (`httpx` and `websockets` are listed in the top-level `requirements.txt`):
 
 ```bash
 python -m pip install -r requirements.txt
@@ -145,7 +150,8 @@ Gemini Live natively returns audio; the script outputs text via `outputAudioTran
 
 ## Token Auditing and Summarization
 
-Each successful or failed call automatically appends a record to `artifacts/yibu_api_calls.jsonl`; there is no need to run a separate audit. Records do not store the full key, prompt, or model body text.
+Each successful or failed call automatically appends a record to
+`omni/artifacts/yibu_api_calls.jsonl` (git-ignored live ledger); there is no need to run a separate audit. Records do not store the full key, prompt, or model body text.
 
 You can also specify a persistent ledger location:
 
@@ -162,9 +168,23 @@ python -m omni.summarize_usage
 By default this generates:
 
 ```text
-artifacts/summary/usage_summary.json
-artifacts/summary/usage_by_model_key_purpose.csv
+omni/artifacts/summary/usage_summary.json
+omni/artifacts/summary/usage_by_model_key_purpose.csv
 ```
+
+Previously committed vendor records and summaries are preserved under
+`omni/artifacts/examples/`. The live ledger and generated summary directory are
+ignored; defaults in assistant config and `summarize_usage.py` stay unchanged.
+Inspect the historical examples without changing them:
+
+```bash
+python -m omni.summarize_usage --log omni/artifacts/examples/yibu_api_calls.jsonl --out-dir /tmp/sixth-sense-usage
+```
+
+Host command latency is separate from vendor usage:
+`python scripts/summarize_latency.py demo.log` groups completion/start events by
+status and capture mode. First PCM submission includes queue/synthesis time but
+is not physical speaker onset; real end-to-end performance remains unmeasured.
 
 Supports usage fields from OpenAI Chat Completions, OpenAI Realtime, and Gemini Live. When the upstream does not return usage, it stays `null` and increments the missing count — unknown consumption must never be treated as 0.
 

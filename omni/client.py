@@ -35,6 +35,7 @@ class AssistantResult:
     call_id: str | None = None
     expires_at: float | None = None
     source_mode: str | None = None
+    session_generation: int | None = None
 
     @classmethod
     def unavailable(cls, reason: str, *, camera: bool = False):
@@ -138,6 +139,8 @@ class OmniClient:
                 outcome = {"ok": False, "reason": "worker_failed"}
             else:
                 outcome = json.loads(output)
+                if not isinstance(outcome, dict):
+                    raise ValueError("invalid_worker_envelope")
         except subprocess.TimeoutExpired:
             outcome = {"ok": False, "reason": "deadline_exceeded"}
         except (OSError, ValueError):

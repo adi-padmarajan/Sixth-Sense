@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import math
 import queue
 import threading
 import time
@@ -37,6 +38,10 @@ class _SpeechItem:
     seq: int
     text: str = field(compare=False)
     expires_at: Optional[float] = field(compare=False, default=None)
+    on_started: Optional[Callable[[float], None]] = field(compare=False, default=None)
+    is_valid: Optional[Callable[[], bool]] = field(compare=False, default=None)
+    bypass_mute: bool = field(compare=False, default=False)
+    generation: int = field(compare=False, default=0)
 
     @property
     def priority(self) -> int:
@@ -92,6 +97,10 @@ class QueuedTTS:
         self._current: Optional[_SpeechItem] = None
         self._shutdown = threading.Event()
         self._worker: Optional[threading.Thread] = None
+        self._volume_level = 3  # absolute host-local gain, 1..5; never a mic setting
+        self._muted = False
+        self._generation = 0
+        self._started_current = False
 
     # -- public API ---------------------------------------------------------
 
@@ -107,9 +116,12 @@ class QueuedTTS:
         priority: Priority = Priority.NORMAL,
         interrupt: bool = False,
         ttl_seconds: Optional[float] = None,
+        *, on_started: Optional[Callable[[float], None]] = None,
+        is_valid: Optional[Callable[[], bool]] = None,
+        bypass_mute: bool = False,
     ) -> bool:
-        """Queue text for speech. Returns False if it was suppressed as a
-        repeat of something queued within `dedup_window_seconds`.
+        """Queue text for speech. Return whether this queue accepted the item.
+        Muted, expired, duplicate, shutdown or evicted items return False.
 
         Higher `priority` values are spoken first. If `interrupt` is set,
         whatever is currently playing is cut off and any queued items of
@@ -117,27 +129,61 @@ class QueuedTTS:
         time-critical alerts, not for routine narration.
 
         `ttl_seconds` discards the item if it hasn't started playing by
-        then; use it for scene descriptions that go stale.
+        then; use it for scene descriptions that go stale. `on_started(at)`
+        receives monotonic first-PCM-submission time after synthesis, once.
+        `is_valid()` is polled before/between audio blocks for session expiry.
+        `bypass_mute` is reserved for audible host audio-control confirmations.
         """
+        if ttl_seconds is not None and (not math.isfinite(ttl_seconds) or ttl_seconds <= 0):
+            return False
         now = self._clock()
         expires_at = now + ttl_seconds if ttl_seconds is not None else None
         item = _SpeechItem(
-            sort_key=-int(priority), seq=next(self._seq), text=text, expires_at=expires_at
+            sort_key=-int(priority), seq=next(self._seq), text=text, expires_at=expires_at,
+            on_started=on_started, is_valid=is_valid, bypass_mute=bypass_mute,
         )
         with self._lock:
-            if self._is_repeat(text, now, priority, interrupt):
+            if self._shutdown.is_set() or (self._muted and priority < Priority.HIGH and not bypass_mute):
+                return False
+            item.generation = self._generation
+            if not bypass_mute and self._is_repeat(text, now, priority, interrupt):
                 log.info("tts: suppressed repeat %r (within %.1fs)", text, self._dedup_window)
                 return False
             if interrupt:
                 self._stop_current.set()
                 self._interrupt_floor = int(priority)
                 self._drop_below(priority)
-            self._put_bounded(item)
-        return True
+            return self._put_bounded(item)
+
+    @property
+    def volume_level(self) -> int:
+        return self._volume_level
+
+    @property
+    def muted(self) -> bool:
+        return self._muted
+
+    def set_volume(self, level: int) -> int:
+        if type(level) is not int or not 1 <= level <= 5:
+            raise ValueError("volume level must be an integer in 1..5")
+        with self._lock:
+            self._volume_level = level
+        return level
+
+    def set_muted(self, muted: bool) -> None:
+        if type(muted) is not bool:
+            raise ValueError("muted must be boolean")
+        with self._lock:
+            self._muted = muted
+            if muted:
+                if self._current is not None and self._current.priority < Priority.HIGH:
+                    self._stop_current.set()
+                self._drop_below(Priority.HIGH)
 
     def cancel_all(self):
         """Cut off current playback and drop everything queued."""
         with self._lock:
+            self._generation += 1
             self._stop_current.set()
             self._interrupt_floor = None
             dropped = self._drain()
@@ -174,20 +220,45 @@ class QueuedTTS:
         """Called once on the worker thread as it shuts down; release
         audio resources here."""
 
+    def _playback_started(self) -> bool:
+        """First audio-write handoff after synthesis, not physical speaker onset."""
+        item = self._current
+        if item is None or self._should_stop():
+            return False
+        if not self._started_current:
+            if item.expires_at is not None and self._clock() >= item.expires_at:
+                return False
+            self._started_current = True
+            if item.on_started:
+                try:
+                    item.on_started(self._clock())
+                except Exception:
+                    log.warning("speech_callback_failed reason=on_started_failed")
+        return True
+
+    def _should_stop(self) -> bool:
+        item = self._current
+        return (self._shutdown.is_set() or self._stop_current.is_set()
+                or item is None or item.generation != self._generation
+                or (self._muted and item.priority < Priority.HIGH and not item.bypass_mute)
+                or (item.is_valid is not None and not item.is_valid()))
+
     # -- internals ------------------------------------------------------------
 
     def _is_repeat(self, text: str, now: float, priority: Priority, interrupt: bool) -> bool:
         """Dedup bookkeeping; call with `_lock` held."""
-        if self._dedup_window <= 0 or priority >= Priority.HIGH or interrupt:
-            self._recent[text] = now
+        if self._dedup_window <= 0:
             return False
         last = self._recent.get(text)
-        if last is not None and now - last < self._dedup_window:
+        if (priority < Priority.HIGH and not interrupt
+                and last is not None and now - last < self._dedup_window):
             return True
         self._recent[text] = now
         if len(self._recent) > 64:
             cutoff = now - self._dedup_window
             self._recent = {t: at for t, at in self._recent.items() if at >= cutoff}
+            while len(self._recent) > 64:
+                self._recent.pop(next(iter(self._recent)))
         return False
 
     def _drain(self) -> List[_SpeechItem]:
@@ -208,7 +279,7 @@ class QueuedTTS:
     def _put_bounded(self, item: _SpeechItem):
         if self._queue.qsize() < self._max_queue:
             self._queue.put(item)
-            return
+            return True
         # Queue full: keep the highest-priority / oldest items, drop the
         # single lowest-priority newest one (which may be the new item).
         items = self._drain()
@@ -218,6 +289,7 @@ class QueuedTTS:
         for keep in items:
             self._queue.put(keep)
         log.warning("tts: queue full (%d); dropped %r", self._max_queue, dropped.text)
+        return dropped is not item
 
     def _run(self):
         try:
@@ -226,7 +298,7 @@ class QueuedTTS:
             try:
                 self._on_worker_exit()
             except Exception:  # noqa: BLE001
-                log.exception("tts: cleanup on worker exit failed")
+                log.warning("tts_cleanup_failed reason=worker_exit_failed")
 
     def _loop(self):
         while not self._shutdown.is_set():
@@ -239,27 +311,38 @@ class QueuedTTS:
                 floor = self._interrupt_floor
                 self._interrupt_floor = None
                 self._stop_current.clear()
+                if item.generation != self._generation or self._shutdown.is_set():
+                    continue
                 if floor is not None and item.priority < floor:
                     log.info("tts: dropped %r (popped during interrupt)", item.text)
                     continue
-                if item.expires_at is not None and self._clock() > item.expires_at:
+                if item.expires_at is not None and self._clock() >= item.expires_at:
                     log.info("tts: dropped %r (expired before playback)", item.text)
                     continue
                 self._current = item
+                self._started_current = False
 
-            if self.on_speak_start:
-                self.on_speak_start()
+            guarded = False
             try:
-                self._synthesize_and_play(item.text, self._stop_current.is_set)
-            except Exception as exc:  # noqa: BLE001 - keep the worker alive
-                log.exception("tts: playback failed for %r", item.text)
-                self._report_fault(f"playback_failed: {exc}")
+                if self._should_stop():
+                    continue
+                if self.on_speak_start:
+                    self.on_speak_start()
+                    guarded = True
+                self._synthesize_and_play(item.text, self._should_stop)
+            except Exception:  # noqa: BLE001 - keep the worker alive
+                log.warning("tts_fault reason=playback_failed")
+                self._report_fault("playback_failed")
                 # Avoid spinning if the audio device is gone for good.
                 self._shutdown.wait(0.5)
             finally:
                 self._current = None
-                if self.on_speak_end:
-                    self.on_speak_end()
+                if guarded and self.on_speak_end:
+                    try:
+                        self.on_speak_end()
+                    except Exception:
+                        log.warning("tts_callback_failed reason=on_speak_end_failed")
+                        self._report_fault("on_speak_end_failed")
 
     def _report_fault(self, reason: str):
         self.fault_reason = reason
@@ -267,7 +350,7 @@ class QueuedTTS:
             try:
                 self.on_fault(reason)
             except Exception:  # noqa: BLE001
-                log.exception("tts: on_fault callback raised")
+                log.warning("tts_callback_failed reason=on_fault_failed")
 
 
 class PiperTTS(QueuedTTS):
@@ -323,7 +406,7 @@ class PiperTTS(QueuedTTS):
             try:
                 stream.close()
             except Exception:  # noqa: BLE001
-                log.debug("tts: closing output stream failed", exc_info=True)
+                log.warning("tts_cleanup_failed reason=stream_close_failed")
 
     def _synthesize_and_play(self, text: str, should_stop: Callable[[], bool]):
         # One OutputStream lives across utterances (opening the device is
@@ -343,10 +426,11 @@ class PiperTTS(QueuedTTS):
             for audio_chunk in self.voice.synthesize(text):
                 samples = audio_chunk.audio_int16_array
                 for start in range(0, len(samples), self.write_block_samples):
-                    if should_stop():
+                    if should_stop() or not self._playback_started():
                         stopped_early = True
                         return
-                    stream.write(samples[start : start + self.write_block_samples])
+                    block = samples[start : start + self.write_block_samples]
+                    stream.write((block.astype("float32") * (self.volume_level / 5)).astype("int16"))
         except Exception:
             self._close_stream()
             raise
@@ -358,7 +442,7 @@ class PiperTTS(QueuedTTS):
                     else:
                         stream.stop()   # waits for buffered audio to finish
                 except Exception:  # noqa: BLE001
-                    log.warning("tts: stopping output stream failed; reopening next time", exc_info=True)
+                    log.warning("tts_cleanup_failed reason=stream_stop_failed")
                     self._close_stream()
 
     def _on_worker_exit(self):

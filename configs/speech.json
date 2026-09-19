@@ -16,5 +16,6 @@
   "wake_window_seconds": 5.0,
   "always_on_commands": ["stop speaking"],
   "question_seconds": 3.0,
-  "max_capture_seconds": 10.0
+  "max_capture_seconds": 10.0,
+  "listening_tone": true
 }

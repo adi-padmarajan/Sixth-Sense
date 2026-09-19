@@ -41,3 +41,7 @@ runs/
 
 # Speech models
 speech/models
+
+# Runtime assistant audit and generated summaries (committed examples live separately)
+omni/artifacts/yibu_api_calls.jsonl
+omni/artifacts/summary/

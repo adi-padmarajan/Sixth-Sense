@@ -18,7 +18,12 @@ structured detections without consumers touching OpenCV or YOLO.
 
 Press `q` in the preview window to quit. The existing `finally` block clears
 `SceneState`, releases any writer, and destroys windows, including on Ctrl-C and
-errors. The existing capture lifecycle is unchanged by the SceneState integration.
+errors. Live-source generator failures/exhaustion now clear evidence and persistent
+tracker state, close the source, and retry indefinitely with exponential backoff.
+During backoff a dark CAMERA UNAVAILABLE frame shows the reconnect attempt; `q`
+still quits. Replay files complete at EOF. Cloud and camera state appear on the
+preview. Camera open/read/loader cleanup may still block upstream; unplug/replug
+responsiveness must be checked with the actual camera.
 
 ### Settings (constants at the top of the script)
 
@@ -28,6 +33,9 @@ errors. The existing capture lifecycle is unchanged by the SceneState integratio
 | `CONF` | `0.35` | Detection confidence threshold (provisional, not a measured optimum) |
 | `ANCHOR_CLASS` | `"person"` | Class to measure from; looked up in the checkpoint's own `model.names` |
 | `MAX_OBJECTS` | `8` | Cap on objects drawn per frame to limit clutter |
+| `MIRROR_PREVIEW` | `False` | Flip displayed frame only, not scene evidence or recording |
+| `RECONNECT_INITIAL_DELAY_S` / `RECONNECT_MAX_DELAY_S` | `0.5` / `5.0` | Provisional retry backoff, unlimited attempts |
+| `UNAVAILABLE_FRAME_SHAPE` / `PREVIEW_POLL_MS` | `(480, 640, 3)` / `50` | Placeholder dimensions and GUI polling interval |
 | `RECORD_PATH` | `None` | Set to a filename (e.g. `"out.mp4"`) to save the annotated video; off by default |
 
 ## What the numbers mean — and don't
@@ -45,7 +53,7 @@ errors. The existing capture lifecycle is unchanged by the SceneState integratio
 
 ```bash
 cd computer-vision
-python3 track_distances.py
+python track_distances.py
 ```
 
 Requires the local checkpoint `yolo26n-objv1-150.pt` (in this directory; SHA-256
@@ -59,14 +67,15 @@ Importing the module has no side effects; everything runs inside `main()`.
 ## Scene evidence (`scene_state.py`)
 
 `SceneState` stores one latest snapshot, with one writer and many readers.
-It imports only NumPy and the standard library. A future orchestrator passes a
+It imports only NumPy and the standard library. The root orchestrator passes a
 shared instance to `track_distances.main(state=state)` and gives that same state
 to the assistant. The preview's `MAX_OBJECTS` cap does not truncate scene evidence.
 
 `Detection` is a frozen dataclass containing `class_id`, `class_name`, `conf`,
-`xyxy` (four floats in original-image pixels), nullable `track_id`, and `region`.
+`xyxy` (four floats in original-image pixels), nullable `track_id`, `region`, and `mirrored` (default false).
 Labels come exclusively from `model.names`. Invalid/non-finite coordinates and
-non-positive-area boxes are skipped; no distance or identity is inferred.
+non-positive-area boxes are skipped; unknown class IDs are skipped with
+`reason=unknown_class_id`, including during preview drawing; no distance or identity is inferred.
 
 For box-centre x and image width W, the region is:
 
@@ -76,6 +85,10 @@ For box-centre x and image width W, the region is:
 
 A centre exactly on a boundary belongs to the region on its right. These are
 positions in the camera view, not verified wearer-relative directions.
+`update(..., mirrored=True)` explicitly swaps left/right regions and records the
+flag while preserving original coordinates. It is independent of display-only
+`MIRROR_PREVIEW`. The wearer-relative left/right check remains a **manual test**;
+do not enable a region swap just because the preview is mirrored.
 
 `SceneSnapshot` is a frozen dataclass with these fields:
 
@@ -85,6 +98,7 @@ positions in the camera view, not verified wearer-relative directions.
 | `captured_at` | Source-local monotonic seconds sampled at `update()` entry; see timing limitation below |
 | `width`, `height` | Original image dimensions in pixels |
 | `detections` | Read-only `list[Detection]`; empty is valid evidence from a received frame |
+| `quality` | `ok`, `too_dark`, `too_bright`, or `low_contrast`; independent of freshness and detection confidence |
 | `source_mode` | `live`, `replay`, or `simulated`; the tracking script uses `live` for integer `SOURCE`, otherwise `replay` |
 | `sequence` | Starts at 1, increments once per successful update; restarts at 1 after reset |
 | `session_generation` | Reset counter shared with `SceneState.session_generation`; lets consumers discard an in-flight response after a session change |
@@ -107,10 +121,11 @@ There is no frame queue or JPEG encoding.
   when the state is empty. It can refer to a newer publication than a preceding
   `read()`: compute age from the returned snapshot for a consistent description.
 - `reset()` clears current evidence and the sequence counter. `main()` resets at
-  entry and in its `finally` block. Reset also increments `session_generation` so
-  the OMNI adapter can reject old-session responses. Callers must reset on any separately managed
-  source restart/change and reset the corresponding YOLO tracker. Automatic
-  mid-stream reconnect detection is not implemented.
+  entry and uses `reset_session(model, state)` on disconnect and exit. Reset
+  increments `session_generation` so the OMNI adapter/queue reject old-session
+  responses. The hook explicitly resets persistent tracker histories/IDs and
+  predictor feature/video caches. Inspected Ultralytics 8.4.138 retains trackers
+  across `track(..., persist=True)` calls; a new call alone does not reset IDs.
 - The clock is injectable (`SceneState(clock=fake_clock)`) for deterministic tests.
 
 **Timing limitation:** `captured_at` is read-completion of the yielded YOLO
@@ -128,7 +143,7 @@ import time
 from scene_state import to_text
 
 snapshot = state.read(max_age_s=0.5)
-if snapshot is None:
+if snapshot is None or snapshot.quality != "ok":
     description = "Camera view is unavailable"
 else:
     description = to_text(snapshot.detections, time.monotonic() - snapshot.captured_at)
@@ -138,12 +153,21 @@ else:
 or `Detected (age 80 ms): none` for an empty list. An unavailable age is rendered
 as `age unknown`. No detections does not establish absence of obstacles.
 
+### Image-quality floor
+
+NumPy computes luminance `(29*B + 150*G + 77*R)/256`. In order: mean < 16
+means `too_dark`; mean > 240 means `too_bright`; standard deviation < 8 means
+`low_contrast`; otherwise `ok`. Constants are provisional bench values, not
+calibrated. Strict boundary comparisons have synthetic tests. This detects some
+useless frames, not general occlusion or blur; the assistant refuses non-`ok`
+frames with camera-unavailable wording and no cloud call.
+
 ## Offline tests
 
 From the repository root:
 
 ```bash
-python3 -m unittest discover -s computer-vision/Tests -p "test_*.py" -v
+python -m unittest discover -s computer-vision/Tests -p "test_*.py" -v
 ```
 
 The tests use small fake boxes, a fake clock, synthetic frames, and mocked preview
@@ -169,9 +193,7 @@ Provenance and license of the checkpoint are not yet documented.
 
 ## Not implemented yet
 
-- The `omni/` consumer and shared-process orchestrator; JPEG/request construction.
 - Full versioned `SceneEvidence` / `HealthEvent` envelopes and explicit inference-error health reporting.
-- Command-line flags for source selection or headless mode (edit the constants instead).
-- Automatic reconnect/session detection and tracker reset during a running stream.
-- Camera read/exposure timestamps, preview stale-state indicators, and measured live performance.
+- Standalone CV command-line flags and headless mode (root `main.py --source` exists).
+- Camera read/exposure timestamps, indicators during upstream blocked reads, and measured live performance.
 - Depth or metric range estimation (deliberately out of scope for this script).

@@ -42,9 +42,9 @@ Reinspect the files before making changes; update this table when they change.
 | Source | `SOURCE = 0` (camera index) or a path to an image/video; constant at top of file, no CLI flags |
 | Tracking args | `stream=True`, `persist=True`, `conf=0.35` (provisional threshold, not a measured optimum) |
 | Output | Annotated OpenCV preview + terminal prints of pixel distances; `q` to quit; optional `RECORD_PATH` writer (off by default) |
-| Cleanup | `finally:` releases the video writer and destroys windows, including on Ctrl-C and exceptions |
-| Structured evidence for consumers | **Implemented** in `scene_state.py`: frozen `Detection` / `SceneSnapshot`, latest-only `SceneState`, freshness checks, image-third regions, and text helper; loop publishes before annotation and resets on entry/exit |
-| Tests | `Tests/test_scene_state.py`: offline unittest coverage with fake boxes/clock, synthetic frames, concurrency, import guards, and mocked loop wiring; no checkpoint or camera |
+| Cleanup | `finally:` releases the video writer and destroys windows, including on Ctrl-C and exceptions; closes generators and source loaders |
+| Structured evidence for consumers | **Implemented** in `scene_state.py`: frozen `Detection` / `SceneSnapshot`, latest-only `SceneState`, freshness checks, image-third regions, and text helper; loop publishes before annotation and resets on entry/disconnect/exit; explicit `reset_session(model, state)` resets persistent trackers too |
+| Tests | `Tests/test_scene_state.py`, `test_reconnect.py`, `test_quality.py`: offline coverage with fake boxes/clock, synthetic frames, concurrency, import guards, and mocked loop wiring; no checkpoint or camera |
 | Depth / metric range | Not implemented, deliberately |
 | Verified environment (macOS) | Python 3.13.5, ultralytics 8.4.138, torch 2.13.0, numpy 2.3.5, opencv-python 5.0.0.93 |
 
@@ -100,8 +100,21 @@ The `SceneState` contract (field names, region rule, `read(max_age_s)`, `reset()
 `scene_state.py`. Keep the docs aligned if the contract changes. `reset()` clears
 the snapshot and restarts sequence at 1 on the next update. It increments
 `session_generation` (also present on snapshots) so consumers can discard answers
-from a previous session without reading a second frame. Automatic mid-stream
-reconnect detection and tracker reset remain unimplemented.
+from a previous session without reading a second frame. Mid-stream live reconnect
+is implemented and fault-injection tested: exceptions/exhaustion reset scene and
+tracker histories, close the old source, show CAMERA UNAVAILABLE with attempt count,
+and retry with 0.5–5 s exponential backoff (provisional module constants). `q` works
+during backoff; replay EOF completes. Installed Ultralytics 8.4.138 reuses
+`model.predictor.trackers` for `persist=True`, so `reset_session()` explicitly calls
+tracker `reset()`; a new `track()` call alone is insufficient. Upstream blocking
+open/read/cleanup can delay the UI; hardware reconnect remains a manual check.
+
+Snapshots carry `quality: ok | too_dark | too_bright | low_contrast`, computed by
+NumPy independently of freshness and confidence. Thresholds 16/240 mean luminance
+and 8 standard deviation are provisional, uncalibrated bench values. Unknown class
+IDs are skipped with a reason code, including in the preview. `MIRROR_PREVIEW=False`
+flips only displayed pixels; an explicit `mirrored` region flag can swap left/right
+after manual wearer-orientation confirmation, without changing original boxes.
 
 ## 5. Tests
 
@@ -111,7 +124,7 @@ is not an importable package: tests add the directory to `sys.path` explicitly.
 Command from the repository root:
 
 ```bash
-python3 -m unittest discover -s computer-vision/Tests -p "test_*.py" -v
+python -m unittest discover -s computer-vision/Tests -p "test_*.py" -v
 ```
 
 Report the discovered test count; zero tests is not a passing suite. Tests that
@@ -122,18 +135,20 @@ of the default run.
 
 ```bash
 # inspect environment
-python3 --version
-python3 -m pip show ultralytics torch numpy opencv-python
+python --version
+python -m pip show ultralytics torch numpy opencv-python
 
 # checksum (only if the checkpoint is present)
 shasum -a 256 computer-vision/yolo26n-objv1-150.pt
 
 # run the live preview (needs the checkpoint, camera 0, camera permission, a GUI)
 cd computer-vision
-python3 track_distances.py
+python track_distances.py
 ```
 
-There are no `--source` / `--no-show` flags; edit the constants. Update this file
+The standalone CV entry has no `--source` / `--no-show` flags; edit its constants.
+Root `python main.py --source path/to/local/video.mp4` provides source selection.
+Use conda base `/opt/anaconda3/bin/python` for the installed dependencies. Update this file
 and `README.md` when that changes.
 
 ## 7. Reporting
