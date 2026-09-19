@@ -303,8 +303,8 @@ class VoskSTT:
                     text = result.get("text", "").strip()
                     if text and self.on_command:
                         self.on_command(text, time.monotonic(), SOURCE_MODE)
-            except Exception:  # noqa: BLE001 - keep listening
-                log.warning("stt_fault reason=recognition_failed")
+            except Exception as exc:  # noqa: BLE001 - keep listening
+                log.warning("stt_fault reason=recognition_failed error=%s", type(exc).__name__)
                 self._report_fault("recognition_failed")
                 self._reset_pending.set()
 

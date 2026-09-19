@@ -373,7 +373,7 @@ paths resolve relative to that file. `question_seconds` and `wake_phrase` stay
 in `configs/speech.json` (`3.0` and `null` respectively). Both assistant commands
 must exist in the speech grammar; startup checks this before opening devices and
 checks every phrase against registered handlers. Volume commands set absolute
-levels 1–5 (default 3), clamped at endpoints, and acknowledge the effective level.
+levels 1–5 (default 5 = full scale, the pre-control loudness), clamped at endpoints, and acknowledge the effective level.
 Mute suppresses ordinary TTS, preserves HIGH alerts and audible audio-control
 confirmations, and never disables STT. Duplicate command sequence numbers cannot
 repeat a volume mutation. The four haptic commands acknowledge "not available yet"

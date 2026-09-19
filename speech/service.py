@@ -131,8 +131,8 @@ class SpeechService:
                 max_queue=config.max_queue,
                 dedup_window_seconds=config.dedup_window_seconds,
             )
-        except Exception:  # noqa: BLE001
-            log.warning("speech_fault subsystem=tts reason=load_failed")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("speech_fault subsystem=tts reason=load_failed error=%s: %s", type(exc).__name__, exc)
             self._set_health("tts", "fault", "load_failed")
         try:
             stt = VoskSTT(
@@ -143,8 +143,8 @@ class SpeechService:
                 blocksize=config.blocksize,
                 max_capture_seconds=config.max_capture_seconds,
             )
-        except Exception:  # noqa: BLE001
-            log.warning("speech_fault subsystem=stt reason=load_failed")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("speech_fault subsystem=stt reason=load_failed error=%s: %s", type(exc).__name__, exc)
             self._set_health("stt", "fault", "load_failed")
 
         return self.attach(tts=tts, stt=stt, config=config)
@@ -187,8 +187,8 @@ class SpeechService:
                     self._set_health("stt", "partial", f"unsupported_phrases: {unsupported}")
                 else:
                     self._set_health("stt", "ready")
-            except Exception:  # noqa: BLE001
-                log.warning("speech_fault subsystem=stt reason=start_failed")
+            except Exception as exc:  # noqa: BLE001
+                log.warning("speech_fault subsystem=stt reason=start_failed error=%s: %s", type(exc).__name__, exc)
                 self._set_health("stt", "fault", "start_failed")
 
         if self._dispatcher is None:
@@ -254,7 +254,7 @@ class SpeechService:
 
     @property
     def volume_level(self) -> int:
-        return self._tts.volume_level if self._tts is not None else 3
+        return self._tts.volume_level if self._tts is not None else 5
 
     @property
     def muted(self) -> bool:
@@ -378,8 +378,8 @@ class SpeechService:
             for handler in handlers:
                 try:
                     handler(cmd)
-                except Exception:  # noqa: BLE001
-                    log.warning("speech_command_failed reason=handler_failed (%s)", tag)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("speech_command_failed reason=handler_failed error=%s (%s)", type(exc).__name__, tag)
 
     def _arming_allows(self, cmd: Command) -> bool:
         """Wake-phrase gate. Runs on the dispatcher thread only."""

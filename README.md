@@ -107,7 +107,7 @@ which is what keeps offline recognition fast and reliable:
 `decrease sensitivity` · `volume up` · `volume down` · `mute` · `sound on`
 
 Every phrase has a handler, checked at startup. Volume uses bounded levels 1–5
-(default 3); audio controls speak confirmations. Mute preserves HIGH alerts and
+(default 5, full scale); audio controls speak confirmations. Mute preserves HIGH alerts and
 `sound on` recognition, without muting the microphone. Pause/resume feedback and
 sensitivity commands honestly say haptic controls are not available yet; the host
 has no controller configuration bridge.

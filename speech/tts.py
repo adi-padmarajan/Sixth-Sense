@@ -97,7 +97,8 @@ class QueuedTTS:
         self._current: Optional[_SpeechItem] = None
         self._shutdown = threading.Event()
         self._worker: Optional[threading.Thread] = None
-        self._volume_level = 3  # absolute host-local gain, 1..5; never a mic setting
+        self._volume_level = 5  # absolute host-local gain, 1..5 (5 = full scale, the
+        # pre-volume-control loudness); never a mic setting
         self._muted = False
         self._generation = 0
         self._started_current = False
@@ -330,8 +331,8 @@ class QueuedTTS:
                     self.on_speak_start()
                     guarded = True
                 self._synthesize_and_play(item.text, self._should_stop)
-            except Exception:  # noqa: BLE001 - keep the worker alive
-                log.warning("tts_fault reason=playback_failed")
+            except Exception as exc:  # noqa: BLE001 - keep the worker alive
+                log.warning("tts_fault reason=playback_failed error=%s", type(exc).__name__)
                 self._report_fault("playback_failed")
                 # Avoid spinning if the audio device is gone for good.
                 self._shutdown.wait(0.5)

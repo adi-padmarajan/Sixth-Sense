@@ -210,7 +210,12 @@ class Orchestrator:
         if listening not in ("ready", "partial"):
             listening = "unavailable"
         snapshot = self.read(self.cfg.max_scene_age_ms / 1000)
-        camera = snapshot.source_mode if snapshot is not None else "unavailable"
+        if snapshot is None:
+            camera = "unavailable"
+        elif snapshot.quality != "ok":
+            camera = f"{snapshot.source_mode} low quality"
+        else:
+            camera = snapshot.source_mode
         question = "in flight" if self.question_in_flight else "idle"
         self.speak(f"Speech {health.get('tts', 'unavailable')}, listening {listening}, "
                    f"cloud {self.cloud_state}, camera {camera}, question {question}.",

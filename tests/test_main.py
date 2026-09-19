@@ -184,6 +184,14 @@ def test_status_reports_listening_fault_and_camera(build, populated, camera):
     assert item.service.speak.call_args.kwargs["ttl_seconds"] == 5
 
 
+def test_status_reports_low_quality_camera_like_the_assistant(build):
+    item = build(populated=False)
+    item.state.update(np.zeros((240, 320, 3), dtype=np.uint8), None, {}, "simulated")
+    item.orch.say_status()
+    assert wait_for(lambda: item.tts.spoken)
+    assert "camera simulated low quality" in item.tts.spoken[0].lower()
+
+
 def test_handler_returns_promptly_while_capture_is_blocked(build):
     release, entered = threading.Event(), threading.Event()
 
@@ -363,8 +371,9 @@ def test_controller_commands_acknowledge_unsupported(build, caplog, phrase):
 def test_audio_controls_effective_bounds_mute_and_duplicate(build):
     from speech import Command
     item = build()
-    for seq, phrase, level in [(0, 'volume up', 4), (1, 'volume up', 5),
-                              (2, 'volume up', 5), (3, 'volume down', 4),
+    assert item.service.volume_level == 5  # default is full scale
+    for seq, phrase, level in [(0, 'volume up', 5), (1, 'volume down', 4),
+                              (2, 'volume down', 3), (3, 'volume up', 4),
                               (4, 'mute', 4), (5, 'sound on', 4)]:
         cmd = Command(phrase, seq, time.monotonic(), time.monotonic(), 'simulated')
         item.orch.set_audio(cmd)
