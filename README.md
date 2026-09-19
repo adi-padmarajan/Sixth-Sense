@@ -1,98 +1,220 @@
-# Sixth-Sense
-Hack The North 2026
+# SpideyIRL 🕷️
 
-## speech pipeline scaffold
+**A real-life Spidey Sense.** A head-worn wearable that turns nearby obstacles into
+directional vibration, and lets you *ask* what the camera sees — hands-free.
 
-This is a starting point for the TTS/STT part of the project: a `speech`
-package wrapping Piper (TTS) and Vosk (STT) behind one simple API, so the
-rest of the project (sensors, haptics, orchestrator) never has to know
-which library is doing the talking or listening.
+> Ever wanted to be Spider-Man? Or maybe you've just related a little too much to
+> Peter Parker lately? Either way, you can't exactly get bitten by a radioactive
+> spider at Hack the North… so we tried the next best thing.
 
-### Setup
+Built at **Hack the North 2026**.
+
+---
+
+## What it does
+
+Peter's Spidey Sense is a tingle that tells him *where* danger is before he sees
+it. Ours works the same way, minus the radioactive spider:
+
+1. **Feel where things are.** Ultrasonic range sensors around a headband each
+   drive a vibration motor on the same side of your head. Something on your
+   left → your left temple buzzes. The closer it gets, the faster the pulses.
+   Eight directions, 45° apart, all relative to where your head is pointing.
+2. **Ask what it is.** Say *"what's in front of me"* and a camera + YOLO object
+   detector + multimodal assistant answer out loud: *"A person is visible on the
+   left of the camera view."* Voice in, voice out, no hands.
+3. **Keep working when the smart parts don't.** Vibration comes from local
+   sensor readings only. No camera, no cloud, no Wi-Fi required. If the
+   assistant is offline, it says so — the tingle keeps tingling.
+
+**The one-line claim:** SpideyIRL turns nearby distance measurements into
+directional touch, with voice access to visual context.
+
+## Why
+
+Spider-Man's real superpower isn't the webs, it's *knowing where things are
+without looking*. That's exactly what's missing when visibility is gone — a
+firefighter in smoke, a diver in silt, someone navigating without sight.
+Those are the futures we're building toward; each one needs its own hardware
+and validation. What we built this weekend is the honest indoor prototype: a
+stationary wearer, soft objects, a dry room, and a device that tells you where
+they are.
+
+## How it works
+
+Three paths, kept deliberately separate so the reflexes never wait on the brain:
+
+```
+  ┌──────────────── Spidey Sense (reflex) ────────────────┐
+  │  8× ultrasonic sensors ─▶ validate ─▶ filter ─▶       │  local · no network
+  │  proximity band ─▶ bounded pulse ─▶ 8× motors         │  no camera · no AI
+  └───────────────────────────────────────────────────────┘
+  ┌──────────────── Eyes & voice (companion host) ────────┐
+  │  camera ─▶ YOLO tracker ─▶ SceneState (latest frame)  │  local
+  │  mic ─▶ Vosk STT (12-phrase grammar) ─▶ handlers      │  local, offline
+  │  "what's in front of me" ─▶ frame + audio ─▶ OMNI ─▶  │  cloud, opt-in
+  │  Piper TTS ─▶ speaker                                  │  local, offline
+  └───────────────────────────────────────────────────────┘
+```
+
+| Layer | Where | Status |
+| --- | --- | --- |
+| Ultrasonic sensor driver (HC-SR04 + front AJ-SR04M via `pigpio`) and a deterministic fake | [`sensor/`](sensor/) | Driver + fake exist; filtering, proximity bands, motor policy in progress |
+| Haptic motor output | — | Not yet in the repo |
+| Live object tracking (Ultralytics, Objects365 checkpoint) + `SceneState` evidence layer | [`computer-vision/`](computer-vision/) | Working |
+| Offline speech: Vosk STT (grammar-limited) + Piper TTS with priority/interrupt queue | [`speech/`](speech/) | Working |
+| Multimodal assistant client (`qwen3.5-omni-flash`), fake client, subprocess deadlines, audit ledger | [`omni/`](omni/) | Working; cloud is off unless enabled |
+| Orchestrator wiring camera, speech, and one assistant question at a time | [`main.py`](main.py) | Working |
+| Versioned config: speech, assistant, voice grammar | [`configs/`](configs/) | Working |
+
+Each subfolder has its own README with the details.
+
+### Direction mapping
+
+Directions are relative to the wearer's head, clockwise from above. One
+versioned mapping is used everywhere — firmware, telemetry, tests, audio.
+
+| Channel | Bearing | Motor | | Channel | Bearing | Motor |
+| --- | --- | --- | --- | --- | --- | --- |
+| `front` | 0° | `motor_0` | | `rear` | 180° | `motor_4` |
+| `front_right` | 45° | `motor_1` | | `rear_left` | 225° | `motor_5` |
+| `right` | 90° | `motor_2` | | `left` | 270° | `motor_6` |
+| `rear_right` | 135° | `motor_3` | | `front_left` | 315° | `motor_7` |
+
+### Distance → pulse cadence (provisional bench profile)
+
+| Band | Distance | Feel |
+| --- | --- | --- |
+| `far` | 1.5 – 3 m | ~1 pulse / s |
+| `mid` | 0.8 – 1.5 m | ~2 pulses / s |
+| `near` | 0.4 – 0.8 m | ~4 pulses / s |
+| `urgent` | < 0.4 m | rapid, bounded burst |
+| `unknown` | no / stale / invalid reading | **no pulse** — reported as a fault, never as "clear" |
+
+These are indoor testing defaults, not measured or validated distances.
+
+### Voice commands
+
+The recognizer is limited to the phrases in [`configs/grammar.json`](configs/grammar.json),
+which is what keeps offline recognition fast and reliable:
+
+`what's in front of me` · `describe` · `device status` · `stop speaking` ·
+`pause feedback` · `resume feedback` · `increase sensitivity` ·
+`decrease sensitivity` · `volume up` · `volume down` · `mute` · `sound on`
+
+## Getting started
+
+Everything below is the companion-host software. It runs on a laptop with a
+webcam and a microphone; no sensors or motors needed.
 
 ```bash
-pip install -r requirements.txt
-bash scripts/fetch_models.sh
-python example-usage.py
-python -m pytest tests   # device-free checks using speech.fakes
+git clone https://github.com/adi-padmarajan/Sixth-Sense.git
+cd Sixth-Sense
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt          # speech + assistant deps
+pip install ultralytics opencv-python    # computer vision deps
+bash scripts/fetch_models.sh             # Piper voice (~60 MB) + Vosk model (~40 MB)
 ```
 
-You should hear "system ready" and then be able to say any word from
-`configs/grammar.json` (e.g. "mute", "volume up") and see it handled.
+### Run it
 
-### Using it from other modules
+```bash
+# Full demo, everything local. Cloud assistant off; you'll hear "system ready. cloud off."
+python main.py
 
-```python
-from speech import speech, Priority, SpeechConfig
+# Same, with canned assistant answers (still real camera, mic, and speaker)
+OMNI_FAKE=1 python main.py
 
-speech.configure(SpeechConfig.load("configs/speech.json"))   # once, at startup
-speech.speak("obstacle ahead", priority=Priority.HIGH, interrupt=True)
-speech.on("describe", lambda cmd: run_cv_description(request_id=cmd.seq))
+# Enable the cloud assistant for real scene answers
+export YIBU_API_KEY='…'     # current shell only — never commit it
+python main.py --cloud
+
+# Replay an image or video instead of camera 0
+python main.py --source path/to/clip.mp4
 ```
 
-That's the whole contract. `speech` is a singleton configured once at
-startup (see `example-usage.py`); everything else just calls `.speak()`
-or registers a `.on()` handler. Handlers receive a frozen `Command` with
-`text`, `seq`, `recognized_at`, `dispatched_at`, `age_seconds`, and
-`source_mode` (`live` from the mic, `simulated`/`replay` from fakes).
+Press `q` in the preview window or `Ctrl-C` to quit. Then say **"what's in
+front of me"** and listen.
 
-- **All settings live in `configs/speech.json`** (`SpeechConfig`,
-  `schema_version` 1): model paths, audio device indices, samplerate and
-  blocksize, echo guard, command age limit, queue size, repeat-suppression
-  window, and the wake-phrase policy. It is validated on load; paths are
-  relative to the config file. `grammar_path` points at `grammar.json`.
+Smaller pieces on their own:
 
-- **Priority + interrupt**: `Priority.HIGH` with `interrupt=True` cuts off
-  whatever is currently playing and drops any queued lower-priority
-  speech. Use this for time-critical alerts, not routine narration —
-  reserve `Priority.LOW` for ambient scene descriptions from the CV
-  stretch goal so they never block an obstacle warning.
-- **Stop / expiry / repeats**: `speech.stop_speaking()` cancels current and
-  queued speech; `speak(..., ttl_seconds=3)` drops a message that hasn't
-  started playing by then (use it for scene descriptions that go stale);
-  identical text queued again within `dedup_window_seconds` is suppressed
-  unless it is `Priority.HIGH` or `interrupt=True` (`speak()` returns
-  `False` when suppressed).
-- **Wake phrase (optional)**: set `wake_phrase` in the config and commands
-  only dispatch within `wake_window_seconds` after it is heard, except
-  `always_on_commands` (default `["stop speaking"]`). Off by default.
-- **Handlers run on a dispatcher thread**, not the recognition thread, so
-  a slow handler doesn't stop listening. Commands older than
-  `max_command_age_seconds` (default 2 s) by the time they're dispatched
-  are discarded, and unmatched utterances are logged, not silently dropped.
-- **Health**: `speech.health` is `{"tts": ..., "stt": ...}` with values
-  `ready`, `partial`, `fault`, or `unavailable`; `speech.health_reason`
-  carries the reason. `partial` means the recognizer is running but some
-  grammar phrases use words the model doesn't know (they are listed in the
-  reason and can never fire -- e.g. `unmute` with the small English model). A backend that fails to load or errors during playback/recognition
-  is reported here instead of taking the other side down. `speak()` returns
-  `False` when no TTS is available.
-- **No hardware needed for tests**: `speech.fakes.FakeTTS` / `FakeSTT`
-  implement the same interfaces; wire them with
-  `speech.attach(tts=FakeTTS(), stt=FakeSTT(), config=SpeechConfig(...))`.
-- **Grammar-limited STT**: `configs/grammar.json` is the full list of
-  recognizable words/phrases. Keeping it small and fixed is what makes
-  Vosk fast and reliable here — add to it as you add commands, but don't
-  expect open-vocabulary recognition from this setup. Every word is
-  checked against the model's vocabulary at startup; a bare `[unk]` result
-  (speech heard, nothing matched) is logged as `not_understood`.
+```bash
+python example-usage.py                  # speech only: say a command, see it handled
+python scripts/check_capture.py          # mic check: records 3 s and writes a WAV
+python computer-vision/track_distances.py  # camera + YOLO preview only
+env -u YIBU_API_KEY python -m omni.demo  # synthetic scene → fake assistant → fake TTS, no devices
+python sensor/sensors.py                 # fake ultrasonic read → distance in mm
+```
 
-### A note on QNX
+### Test
 
-This module (`piper-tts`, `vosk`, `sounddevice`) depends on native
-compiled libraries that are built for Linux/macOS/Windows, not QNX. If
-you're targeting the QNX sponsor track, the safer path is to develop and
-demo this module on Linux (e.g. a Raspberry Pi) and keep the
-sonar-sensing + haptic-actuation loop as the piece that actually runs on
-QNX, talking to this module over a serial or network link. Confirm
-QNX's current audio driver and native-extension support with the sponsor
-mentors before committing to porting this module itself — that changes
-the plan significantly either way.
+All offline: no camera, mic, sensors, network, GPU, or API key.
 
-### Extending later
+```bash
+env -u YIBU_API_KEY python -m pytest tests -q                                        # 76 tests
+env -u YIBU_API_KEY python -m unittest discover -s omni/tests -t . -v                # 49 tests
+env -u YIBU_API_KEY python -m unittest discover -s computer-vision/Tests -p 'test_*.py' -v  # 22 tests
+```
 
-If sensors/haptics end up in a different process or language than this
-module, don't refactor `tts.py`/`stt.py` — add a transport layer in front
-of `SpeechService` (e.g. newline-delimited JSON over a local socket) so the
-rest of the project keeps calling `speech.speak()` / `speech.on()`
-exactly as before. Don't build it until the process split is known.
+## Hardware
+
+| Part | Choice | Notes |
+| --- | --- | --- |
+| Range sensors | HC-SR04 ultrasonic + AJ-SR04M (front) | Sequenced firing to avoid cross-talk; a missed echo is `unknown`, not "clear" |
+| Controller | Raspberry Pi (`pigpio` GPIO driver) | QNX on Pi explored for the sensor/haptic loop — see [`sensor/sensors.py`](sensor/sensors.py) |
+| Vibration | 8 motors, one per direction | Motor driver not yet in the repo; pulse widths and comfort limits still to be measured |
+| Camera / mic / speaker | Laptop webcam, mic, and speaker | Off-head compute during the demo, disclosed as such |
+| Mount | Adjustable headband | Helmet compatibility is a future goal |
+
+Eight sensors 45° apart do **not** give continuous 360° coverage — there are
+gaps between beams, and a horizontal ring doesn't see steps, holes, or overhead
+hazards. We describe it as eight-direction sensing until we've measured
+otherwise.
+
+## Ground rules we built to
+
+- Distance → vibration is a fixed, testable mapping. **No AI model ever touches
+  a motor.**
+- Missing, stale, or invalid readings are **unknown**, never empty space.
+- Sensor measurements, camera detections, and assistant interpretations stay
+  distinguishable end to end. The assistant says *"A person is visible ahead"*
+  and the sensor says *"obstacle about one metre in front"* — we never glue the
+  sensor's distance onto the camera's object without a real association.
+- Cloud is off by default, visible when on, and only ever sees one frame and
+  one question at a time. Credentials come from the environment, never code.
+  No recording, no identity recognition, no bystander retention.
+- The reflex loop cannot block on HTTP, inference, speech, or logging.
+
+## Prototype boundaries
+
+This is a hackathon prototype demonstrated with a stationary wearer, soft
+movable objects, and a dry, well-lit indoor room. It is **not** certified,
+fireproof, waterproof, or a replacement for any protective, rescue, or mobility
+equipment. Smoke, darkness, and underwater operation are future validation
+questions, not demonstrated capabilities. It does not plan routes, guarantee
+obstacle avoidance, or build a 3D map. Please don't blindfold yourself and walk
+into traffic with it. With great power, etc.
+
+## Repository layout
+
+```
+main.py             orchestrator: camera + speech + one assistant question at a time
+sensor/             ultrasonic SensorDriver protocol, pigpio Linux driver, deterministic fake
+computer-vision/    YOLO tracker, SceneState, tests, local checkpoint
+speech/             Piper TTS + Vosk STT service, fakes, downloaded models (gitignored)
+omni/               assistant client, scene request builder, fake, vendor CLIs, audit ledger
+configs/            speech.json · assistant.json · grammar.json (all schema_version 1)
+scripts/            fetch_models.sh · check_capture.py
+tests/              orchestrator + speech tests
+SYSTEM_ARCHITECTURE.md   companion-host software architecture in depth
+AGENTS.md / CLAUDE.md    engineering guidance for contributors and coding agents
+```
+
+## Team
+
+Built at Hack the North 2026 by **Aditya Padmarajan**, **Halie Favron**, and
+**Noah Valentin Klaholz**.
+
+## License
+
+[MIT](LICENSE)
