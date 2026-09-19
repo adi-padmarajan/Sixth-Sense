@@ -1,0 +1,9 @@
+# Opt-in recordings written by track_distances.py (RECORD_PATH)
+*.mp4
+*.avi
+*.mkv
+
+# Ultralytics artifacts written to the working directory
+runs/
+cropped-detections/
+*.cache
