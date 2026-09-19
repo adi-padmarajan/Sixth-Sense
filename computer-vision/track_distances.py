@@ -20,6 +20,8 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 
+from scene_state import SceneState
+
 MODEL_PATH = Path(__file__).resolve().parent / "yolo26n-objv1-150.pt"
 SOURCE = 0            # camera index, or a path to an image/video file
 CONF = 0.35           # detection threshold; provisional, not a measured optimum
@@ -64,7 +66,10 @@ def draw_distances(frame, objects, anchor_class_id):
     return measurements
 
 
-def main() -> None:
+def main(state: SceneState | None = None) -> None:
+    if state is None:
+        state = SceneState()
+    state.reset()
     if not MODEL_PATH.is_file():
         raise FileNotFoundError(f"Model checkpoint not found: {MODEL_PATH}")
 
@@ -74,9 +79,11 @@ def main() -> None:
 
     results = model.track(source=SOURCE, stream=True, persist=True, conf=CONF, verbose=False)
     video_writer = None
+    source_mode = "live" if isinstance(SOURCE, int) else "replay"
 
     try:
         for result in results:
+            state.update(result.orig_img, result.boxes, names, source_mode)
             frame = result.plot()  # boxes, labels, track IDs
 
             objects = []
@@ -101,6 +108,7 @@ def main() -> None:
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
     finally:
+        state.reset()
         if video_writer is not None:
             video_writer.release()
         cv2.destroyAllWindows()

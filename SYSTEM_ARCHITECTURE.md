@@ -24,7 +24,7 @@ keep running.
 | Component | Location | Status | Role |
 | --- | --- | --- | --- |
 | YOLO tracker | `computer-vision/track_distances.py` | [exists] | Ultralytics tracking on camera `0` with the local Objects365 checkpoint; annotated preview; object-to-object **pixel** distances |
-| Scene state | `computer-vision/` (new module) | [planned] | Thread-safe "latest frame + latest detections + timestamp" that the loop updates and the assistant reads |
+| Scene state | `computer-vision/scene_state.py` | [exists] | Thread-safe latest original frame + detections + monotonic result-receipt timestamp; immutable snapshots, freshness filtering, and reset |
 | Vosk STT | `speech/stt.py` | [exists] | Offline recognizer restricted to `configs/grammar.json`; background mic thread; fires `on_command(text)` |
 | Piper TTS | `speech/tts.py` | [exists] | Offline synthesis with `LOW / NORMAL / HIGH` priority queue and interrupt |
 | SpeechService | `speech/service.py` | [exists] | Singleton facade: `speech.on(cmd, handler)`, `speech.speak(text, priority)`; mutes the mic while the speaker plays (echo guard) |
@@ -47,7 +47,7 @@ flowchart LR
 
         subgraph CV["computer-vision/"]
             YOLO["YOLO tracker<br/>track_distances.py<br/><b>[exists]</b>"]
-            STATE["SceneState<br/>latest frame · detections · timestamp<br/><b>[planned]</b>"]
+            STATE["SceneState<br/>latest frame · detections · timestamp<br/><b>[exists]</b>"]
             PREVIEW["Annotated preview window<br/><b>[exists]</b>"]
         end
 
@@ -120,8 +120,8 @@ sequenceDiagram
     S->>R: start recording (mic bypasses Vosk)
     W->>R: "what's in front of me?"  (~3 s)
     R->>O: question audio (PCM 16 kHz)
-    O->>ST: read()  → frame, detections, age_ms
-    alt frame older than MAX_SCENE_AGE_MS
+    O->>ST: read(max_age_s) → SceneSnapshot or None
+    alt snapshot absent or older than maximum age
         O->>P: speak("Camera view is unavailable", NORMAL)
     else fresh frame
         O->>C: audio + JPEG frame + detections-as-text + system prompt
@@ -165,25 +165,59 @@ call inline, or voice recognition freezes for the duration of the request.
 
 ## 6. Data passed between components
 
-### `SceneState` (CV → assistant) [planned]
+### `SceneState` (CV → assistant) [exists]
+
+`SceneState` returns a frozen `SceneSnapshot` dataclass, containing frozen
+`Detection` dataclasses. Field sketch below (not a serialized transport envelope):
 
 ```python
 {
   "frame":       np.ndarray,          # original BGR frame, not the annotated one
-  "captured_at": float,               # time.monotonic() when the frame was read
+  "captured_at": float,               # monotonic result read-completion; timing caveat below
   "width": int, "height": int,
   "detections": [
     {"class_id": 42, "class_name": "chair", "conf": 0.71,
-     "xyxy": [x0, y0, x1, y1],        # original-image pixels, top-left origin
+     "xyxy": (x0, y0, x1, y1),        # four floats, original-image pixels, top-left origin
      "track_id": 7,                   # or None
      "region": "left"}                # left | center | right, by box-centre x / thirds
   ],
-  "source_mode": "live"               # live | replay | simulated
+  "source_mode": "live",              # live | replay | simulated
+  "sequence": 1                       # +1 per update; first update after reset is 1
 }
 ```
 
 Region thirds are **camera-view** positions ("left of the camera view"), not
 wearer-relative directions — the preview is not yet verified for mirroring.
+For centre x and width W: left is x < W/3; center is W/3 <= x < 2W/3;
+right is x >= 2W/3. Exact boundaries belong to the region on the right.
+
+`update(frame, boxes, names, source_mode)` copies the original BGR pixels into
+immutable backing storage and extracts detections using the supplied class map.
+The public detection list rejects mutation. Readers get independent array views
+over the same read-only pixels; CPython snapshot-reference publication does not
+wait for readers. The state retains only its latest publication, with no queue
+and no JPEG encoding.
+
+`read(max_age_s=None)` returns the latest snapshot or `None` when empty; with a
+limit it also returns `None` if age is strictly greater than the limit. Equality
+is fresh. `age_s()` returns the latest age, or `None` when empty. `reset()` clears
+evidence and the sequence counter. The tracking loop resets at entry/exit;
+automatic mid-stream reconnect detection and tracker reset remain planned.
+
+The clock defaults to `time.monotonic` and can be injected for tests. With the
+current minimal tracking integration, `captured_at` is sampled at `update()`
+entry, when the loop has read a yielded YOLO result **after inference**. This is
+result read-completion, not underlying camera read-completion or exposure time.
+Age therefore excludes upstream buffering and inference. Capture timing remains
+future work; do not interpret this age as total image latency. Replay uses local
+processing time, not the recording's original timestamp.
+
+The assistant should read once with its maximum age and compute text age using
+that returned snapshot's `captured_at` and the same clock. A separate `age_s()`
+call could observe a newer update. `to_text(detections, age_s)` formats the text
+shown below, uses `none` for an empty list, and `age unknown` when age is `None`.
+It never interprets empty detections as absence of hazards. The assistant should
+recheck that same snapshot's age before sending a delayed request.
 
 ### OMNI request (assistant → cloud) [planned]
 
@@ -191,7 +225,7 @@ wearer-relative directions — the preview is not yet verified for mirroring.
 | --- | --- |
 | System prompt | "Describe only what is in the camera view, in one short sentence. Use the detection list as ground truth. Never state distances, never say an area is clear, never claim to see behind the wearer. If unsure, say so." |
 | Audio | The recorded question (PCM/WAV, 16 kHz mono) |
-| Image | JPEG of `SceneState.frame` (downscaled, e.g. 640 px wide) |
+| Image | JPEG of the returned `SceneSnapshot.frame` (downscaled, e.g. 640 px wide) |
 | Text | `Detected (age 80 ms): chair left 0.71, person center 0.82` |
 
 ### OMNI response → speech
@@ -218,7 +252,7 @@ working, assistant says it's unavailable, haptics (separate path) continue.
 
 | File | Change | Why |
 | --- | --- | --- |
-| `computer-vision/track_distances.py` | Publish original frame + detection list into `SceneState` each iteration; accept an optional `on_frame` callback or shared object | Today the loop only draws and prints; nothing can read it |
+| `computer-vision/track_distances.py` | [exists] `main(state: SceneState \| None = None)` publishes original frame + all detections before plotting; source mode derives from `SOURCE`; reset at entry and in `finally` | Consumers share the latest evidence without calling OpenCV/YOLO; result-receipt timing limitation documented in §6 |
 | `speech/stt.py` | Add a "capture raw audio for N seconds, bypassing the recogniser" mode, or expose the mic stream | Vosk cannot hear open-vocabulary questions |
 | `configs/grammar.json` | Add the chosen wake phrase if not `describe` | Only grammar entries are recognised |
 | `requirements.txt` | Add the OMNI SDK / `requests` / `websockets` as chosen | New dependency |

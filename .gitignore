@@ -34,7 +34,7 @@ Thumbs.db
 # YOLO / model outputs
 runs/
 *.pt
-!Computer\ Vision/yolo26n-objv1-150.pt
+!computer-vision/yolo26n-objv1-150.pt
 
 # Speech models
 speech/models
