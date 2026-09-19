@@ -450,3 +450,181 @@ def test_configure_requires_model_paths(service):
     with pytest.raises(ValueError, match="required for a real backend"):
         service.configure(SpeechConfig())
     assert service.health == {"tts": "unavailable", "stt": "unavailable"}
+
+
+# -- question capture ---------------------------------------------------------
+
+import io
+import queue
+import wave
+
+
+def _wav_info(data: bytes):
+    w = wave.open(io.BytesIO(data))
+    return w.getnchannels(), w.getframerate(), w.getsampwidth(), w.getnframes()
+
+
+def test_capture_question_returns_wav_of_requested_length(service):
+    stt = FakeSTT()
+    service.attach(tts=FakeTTS(), stt=stt)
+    data = service.capture_question(1.0)
+    assert isinstance(data, bytes)
+    assert _wav_info(data) == (1, 16000, 2, 16000)
+    assert stt.capture_calls == [1.0]
+
+
+def test_capture_question_refuses_while_muted(service):
+    stt = FakeSTT()
+    service.attach(tts=FakeTTS(), stt=stt)
+    service._on_speak_start()          # speaker playing -> mic muted at source
+    assert service.capture_question(1.0) is None
+    assert stt.capture_calls == []
+    assert not service.is_capturing
+
+
+def test_capture_question_reports_failed_capture_as_none(service):
+    stt = FakeSTT()
+    stt.capture_fails = True
+    service.attach(tts=FakeTTS(), stt=stt)
+    assert service.capture_question(1.0) is None
+    assert stt.capture_calls == []
+
+
+@pytest.mark.parametrize("seconds", [0, -1.0, 10.01])
+def test_capture_question_rejects_out_of_bounds_seconds(service, seconds):
+    service.attach(tts=FakeTTS(), stt=FakeSTT())
+    with pytest.raises(ValueError):
+        service.capture_question(seconds)
+
+
+def test_capture_question_without_stt_returns_none(service):
+    service.attach(tts=FakeTTS())
+    assert service.capture_question(1.0) is None
+    assert not service.is_capturing
+
+
+def test_config_validates_question_capture_window(tmp_path):
+    cfg = SpeechConfig.load("configs/speech.json", require_models=False)
+    assert cfg.question_seconds == 3.0 and cfg.max_capture_seconds == 10.0
+    with pytest.raises(ValueError, match="question_seconds"):
+        SpeechConfig(question_seconds=12.0, max_capture_seconds=10.0)
+    with pytest.raises(ValueError, match="question_seconds"):
+        SpeechConfig(question_seconds=0)
+    with pytest.raises(ValueError, match="question_seconds"):
+        SpeechConfig(question_seconds=-1.0)
+
+
+# -- VoskSTT capture logic, no vosk / PortAudio -----------------------------
+#
+# The constructor loads a model and imports sounddevice, so build the object
+# with __new__ and set only the state that _audio_callback / capture / set_muted
+# touch. If VoskSTT grows more state these tests are the first to notice.
+
+def _bare_vosk_stt(samplerate=16000, blocksize=4000):
+    from speech.stt import VoskSTT
+    stt = VoskSTT.__new__(VoskSTT)
+    stt.samplerate = samplerate
+    stt.blocksize = blocksize
+    stt.max_capture_seconds = 10.0
+    stt._audio_q = queue.Queue(maxsize=20)
+    stt._dropped_blocks = 0
+    stt._overflows = 0
+    stt._running = threading.Event()
+    stt._running.set()
+    stt._muted = threading.Event()
+    stt._reset_pending = threading.Event()
+    stt._init_capture_state()
+    return stt
+
+
+class _FakeMic(threading.Thread):
+    """Drives _audio_callback with int16 blocks like PortAudio would."""
+
+    def __init__(self, stt, blocks: int, blocksize=4000, interval=0.002, fill=b"\x01\x00"):
+        super().__init__(daemon=True)
+        self.stt, self.blocks, self.interval = stt, blocks, interval
+        self.block = fill * blocksize
+        self.delivered = 0
+
+    def run(self):
+        for _ in range(self.blocks):
+            self.stt._audio_callback(self.block, len(self.block) // 2, None, None)
+            self.delivered += 1
+            time.sleep(self.interval)
+
+
+def test_vosk_capture_diverts_exact_sample_count_from_recognizer():
+    stt = _bare_vosk_stt()
+    mic = _FakeMic(stt, blocks=12)
+    result = {}
+    t = threading.Thread(target=lambda: result.update(wav=stt.capture(3.0, timeout=2.0)))
+    t.start()
+    assert wait_for(lambda: stt.is_capturing)
+    mic.start(); mic.join(); t.join(2.0)
+    assert _wav_info(result["wav"]) == (1, 16000, 2, 48000)
+    assert stt._audio_q.qsize() == 0                 # nothing leaked to Vosk
+    assert not stt.is_capturing and stt._reset_pending.is_set()
+    # Post-capture audio goes back to the recognizer queue.
+    stt._audio_callback(mic.block, 4000, None, None)
+    assert stt._audio_q.qsize() == 1
+
+
+def test_vosk_capture_truncates_partial_last_block():
+    stt = _bare_vosk_stt()
+    mic = _FakeMic(stt, blocks=3)                    # 0.75 s available
+    result = {}
+    t = threading.Thread(target=lambda: result.update(wav=stt.capture(0.3, timeout=2.0)))
+    t.start()
+    assert wait_for(lambda: stt.is_capturing)
+    mic.start(); mic.join(); t.join(2.0)
+    assert _wav_info(result["wav"])[3] == 4800           # not 8000
+
+
+def test_vosk_capture_is_abandoned_when_muted_mid_capture():
+    stt = _bare_vosk_stt()
+    result = {}
+    t = threading.Thread(target=lambda: result.update(wav=stt.capture(3.0, timeout=2.0)))
+    t.start()
+    assert wait_for(lambda: stt.is_capturing)
+    stt._audio_callback(b"\x01\x00" * 4000, 4000, None, None)
+    stt.set_muted(True)                              # HIGH alert started speaking
+    t.join(1.0)
+    assert not t.is_alive()
+    assert result["wav"] is None
+    assert not stt.is_capturing and stt._reset_pending.is_set()
+    assert stt._audio_q.qsize() == 0
+
+
+def test_vosk_capture_refuses_to_start_while_muted():
+    stt = _bare_vosk_stt()
+    stt.set_muted(True)
+    assert stt.capture(1.0, timeout=0.2) is None
+    assert not stt.is_capturing
+
+
+def test_vosk_capture_times_out_when_stream_stalls():
+    stt = _bare_vosk_stt()
+    t0 = time.monotonic()
+    assert stt.capture(3.0, timeout=0.2) is None
+    assert time.monotonic() - t0 < 1.0
+    assert not stt.is_capturing and stt._reset_pending.is_set()
+
+
+def test_vosk_capture_rejects_concurrent_capture_but_first_completes():
+    stt = _bare_vosk_stt()
+    result = {}
+    t = threading.Thread(target=lambda: result.update(wav=stt.capture(0.5, timeout=2.0)))
+    t.start()
+    assert wait_for(lambda: stt.is_capturing)
+    assert stt.capture(0.5, timeout=0.2) is None    # immediate, no wait
+    mic = _FakeMic(stt, blocks=2); mic.start(); mic.join(); t.join(2.0)
+    assert _wav_info(result["wav"])[3] == 8000
+
+
+def test_vosk_capture_bounds_and_not_running():
+    stt = _bare_vosk_stt()
+    for bad in (0, -1, 10.5):
+        with pytest.raises(ValueError):
+            stt.capture(bad)
+    stt._running.clear()
+    assert stt.capture(1.0) is None

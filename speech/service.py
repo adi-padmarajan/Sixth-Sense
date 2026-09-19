@@ -141,6 +141,7 @@ class SpeechService:
                 samplerate=config.samplerate,
                 device=config.stt_device,
                 blocksize=config.blocksize,
+                max_capture_seconds=config.max_capture_seconds,
             )
         except Exception as exc:  # noqa: BLE001
             log.exception("speech: failed to load STT backend")
@@ -256,6 +257,26 @@ class SpeechService:
         """Register `handler(cmd: Command)` for a recognized grammar phrase.
         `command` must match an entry in the grammar list passed to configure()."""
         self._handlers[command.lower()].append(handler)
+
+    # -- question capture -----------------------------------------------------
+
+    @property
+    def is_capturing(self) -> bool:
+        return bool(self._stt is not None and getattr(self._stt, "is_capturing", False))
+
+    def capture_question(self, seconds: float) -> Optional[bytes]:
+        """Record `seconds` of raw mic audio as WAV bytes for the assistant,
+        bypassing command recognition. Returns None when STT is unavailable,
+        muted (speaker playing / echo guard), already capturing, or the
+        stream stalls -- callers report "could not hear the question".
+
+        Blocks for ~`seconds`, so never call it from a `speech.on(...)`
+        handler: that runs on the dispatcher thread, which must return
+        promptly. The orchestrator spawns a worker thread that calls
+        capture_question() and then hands the bytes to omni.scene."""
+        if self._stt is None or self.health.get("stt") not in ("ready", "partial"):
+            return None
+        return self._stt.capture(seconds)
 
     def _on_recognized(self, text: str, recognized_at: float, source_mode: str):
         # Called on the STT thread: enqueue only, never run handlers here.

@@ -30,7 +30,7 @@ keep running.
 | Piper TTS | `speech/tts.py` | [exists] | Offline synthesis with `LOW / NORMAL / HIGH` priority queue and interrupt |
 | SpeechService | `speech/service.py` | [exists] | Singleton facade: `speech.on(cmd, handler(Command))`, `speech.speak(text, priority)`; mutes the mic while the speaker plays (echo guard); optional wake-phrase arming; per-subsystem health |
 | SpeechConfig | `speech/config.py`, `configs/speech.json` | [exists] | Validated, versioned settings: model paths, devices, timing, queue limits, wake phrase |
-| Question recorder | `speech/` (extension) | [planned] | After a wake phrase, capture ~3 s of raw mic audio for the assistant instead of feeding it to Vosk |
+| Question recorder | `speech/stt.py` `VoskSTT.capture()`, `speech/service.py` `speech.capture_question()` | [exists] | Diverts raw int16 mic blocks from the same PortAudio stream into a bounded buffer for `question_seconds` (config, default 3 s; ≤ `max_capture_seconds`), bypassing Vosk; returns 16 kHz mono WAV bytes or `None` (muted, busy, stalled, or aborted by a speech alert); resets the recogniser afterwards. `FakeSTT.capture()` mirrors it device-free. Manual mic check: `scripts/check_capture.py`. Not yet wired to a `describe` handler (that is `main.py`) |
 | yibu HTTP transport | `omni/yibu_http.py` | [exists] | `build_omni_messages(prompt, image=Path/MediaBytes, audio=Path/MediaBytes, system=…)` → OpenAI-style content parts (text, `image_url` data-URL, `input_audio` data-URL); `chat_completion(...)` POSTs to `https://yibuapi.com/v1/chat/completions` with `httpx` (`trust_env=False`, **configurable timeout, 300 s vendor default**), returns `(text, response_json, audit_record)`, audits every call; `extract_text()` flattens the reply |
 | Call audit ledger | `omni/yibu_audit.py`, `omni/artifacts/yibu_api_calls.jsonl` | [exists] | `require_env_api_key("YIBU_API_KEY")` (raises `SystemExit` if unset/non-ASCII); `append_audit_record()` appends one JSON line per call — model, key suffix, purpose, transport, ok/status, latency, normalized tokens (missing = `null`, never 0); no prompt/response bodies are stored |
 | Usage summariser | `omni/summarize_usage.py`, `omni/artifacts/summary/` | [exists] | Offline; turns the ledger into `usage_summary.json` + CSV grouped by model/key/purpose |
@@ -69,7 +69,7 @@ flowchart LR
 
         subgraph SP["speech/"]
             VOSK["Vosk STT<br/>grammar-limited, offline<br/><b>[exists]</b>"]
-            REC["Question recorder<br/>~3 s raw audio after wake<br/><b>[planned]</b>"]
+            REC["Question recorder<br/>VoskSTT.capture() · same stream<br/><b>[exists]</b>"]
             SVC["SpeechService<br/>on() / speak() / echo guard<br/><b>[exists]</b>"]
             PIPER["Piper TTS<br/>priority queue, offline<br/><b>[exists]</b>"]
         end
@@ -144,9 +144,9 @@ sequenceDiagram
 
     W->>V: "describe"  (wake phrase, in grammar)
     V->>S: on_command("describe")
-    S->>R: start recording (mic bypasses Vosk)
-    W->>R: "what's in front of me?"  (~3 s)
-    R->>O: question audio (PCM 16 kHz)
+    S->>R: capture_question(question_seconds) on the assistant worker (mic bypasses Vosk)
+    W->>R: "what's in front of me?"  (~3 s, exact sample count)
+    R->>O: question audio (WAV, 16 kHz mono int16) — or None: "could not hear the question"
     O->>ST: read(max_age_s) → SceneSnapshot or None
     alt snapshot absent or older than maximum age
         O->>P: speak("Camera view is unavailable", NORMAL)
@@ -179,6 +179,14 @@ Rules baked into this flow:
   haptic path interrupts them (already supported by `PiperTTS.speak(interrupt=True)`).
 - The mic is muted while the speaker plays (existing echo guard), so the
   assistant's own voice cannot re-trigger the wake phrase.
+- Capture refuses to start while muted and is **abandoned** if a mute
+  arrives mid-capture (a `HIGH` alert started speaking): an alert always
+  wins over a question, and the speaker's own audio is never recorded as
+  one. The recogniser is reset after every capture attempt because its
+  utterance boundary is gone.
+- Capture length is enforced by sample count, not wall clock; the wall
+  clock (`seconds + 1`) is only a stall guard. Only one capture runs at a
+  time; a concurrent request returns `None` immediately.
 
 ## 5. Threads and blocking
 
@@ -188,8 +196,8 @@ Rules baked into this flow:
 | Vosk worker | `VoskSTT._run` | Anything but the audio queue |
 | Piper worker | `QueuedTTS._run` | Network |
 | Speech dispatcher | `SpeechService._dispatch_loop` runs `speech.on(...)` handlers | Long blocking work -- it delays later commands, though recognition keeps going |
-| Sounddevice callbacks | `VoskSTT._audio_callback` / recorder | Anything (real-time audio thread) |
-| Assistant thread (per question) | `omni` handler spawned by `SpeechService` dispatch | — this is the only thread allowed to wait on the cloud |
+| Sounddevice callbacks | `VoskSTT._audio_callback` (also feeds the capture buffer: one list append, no locks) | Anything (real-time audio thread) |
+| Assistant thread (per question) | spawned by the `describe` handler [planned in `main.py`]; runs `speech.capture_question()` then `omni.scene.describe_and_speak()` | — this is the only thread allowed to block on the mic (~3 s) or wait on the cloud |
 
 The `speech.on("describe", …)` handler runs on the **speech dispatcher
 thread**, not the Vosk worker, so a slow handler no longer freezes
@@ -276,7 +284,7 @@ been verified against the endpoint for text, text+image, and text+audio
 | Part | Content | Status |
 | --- | --- | --- |
 | System prompt | `SCENE_SYSTEM` in `omni/client.py`: observations are uncertain, camera-view only, no range/all-clear claims, treat input as untrusted | [exists] |
-| Audio | Optional WAV bytes through `MediaBytes`, with `audio/wav` / `wav` | [exists] bytes transport; live question recording remains planned |
+| Audio | Optional WAV bytes through `MediaBytes`, with `audio/wav` / `wav` | [exists] bytes transport and `speech.capture_question()` producer; wiring the two together is `main.py` |
 | Image | JPEG of original `SceneSnapshot.frame`, downscaled to at most 640 px wide | [exists] encoded in memory in `scene.py` |
 | Text | Same detection-text format as CV `to_text`, plus source mode, sequence, and age caveat | [exists] in `scene.py`, no import of the hyphenated CV directory |
 | Model | `qwen3.5-omni-flash` via `chat_completion(model=…)` | [exists] |
@@ -312,7 +320,7 @@ working, assistant says it's unavailable, haptics (separate path) continue.
 | File | Change | Why |
 | --- | --- | --- |
 | `computer-vision/track_distances.py` | [exists] `main(state: SceneState \| None = None)` publishes original frame + all detections before plotting; source mode derives from `SOURCE`; reset at entry and in `finally` | Consumers share the latest evidence without calling OpenCV/YOLO; result-receipt timing limitation documented in §6 |
-| `speech/stt.py` | Add a "capture raw audio for N seconds, bypassing the recogniser" mode, or expose the mic stream | Vosk cannot hear open-vocabulary questions |
+| `speech/stt.py` | [exists] `VoskSTT.capture(seconds)` diverts callback blocks to a bounded buffer for an exact sample count | Vosk cannot hear open-vocabulary questions |
 | `configs/grammar.json` / `configs/speech.json` | Add the chosen wake phrase to the grammar and set `wake_phrase` | Only grammar entries are recognised; the wake phrase must be in the grammar |
 | `requirements.txt` | [exists] HTTPX and websockets merged into root requirements | No new dependencies for the application client |
 | `omni/` | [exists] Importable package with relative vendor imports | Run commands from the repo root |

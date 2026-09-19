@@ -13,22 +13,77 @@ at the end of the utterance so the consumer can reject commands that were
 buffered while it was busy; `source_mode` is always "live" here. Keep handlers short: the callback runs on the
 recognition thread (SpeechService moves dispatch off it).
 
+`capture(seconds)` records raw mic audio for the OMNI question path,
+bypassing the recogniser (Vosk only knows the grammar phrases). Same
+stream, same callback -- a second PortAudio stream on one device is the
+failure mode that avoids.
+
 `speech.fakes.FakeSTT` implements the same surface without a microphone.
 """
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import queue
 import threading
 import time
+import wave
 from typing import Callable, Iterable, List, Optional
 
 log = logging.getLogger(__name__)
 
 CommandCallback = Callable[[str, float, str], None]
 SOURCE_MODE = "live"
+SAMPLE_WIDTH = 2  # RawInputStream dtype="int16", mono
+
+
+def pcm16_to_wav(pcm: bytes, samplerate: int) -> bytes:
+    """Frame raw 16-bit mono PCM as a WAV file in memory."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(SAMPLE_WIDTH)
+        w.setframerate(samplerate)
+        w.writeframes(pcm)
+    return buf.getvalue()
+
+
+class _CaptureBuffer:
+    """Accumulates callback blocks until `target_bytes` have arrived.
+
+    `append()` runs on the PortAudio thread: no locks, no logging, no
+    allocation beyond the list append. `max_blocks` bounds the list even
+    if the done signalling has a bug. `abort()` wakes the waiter with
+    `aborted` set; the buffer is then discarded.
+    """
+
+    __slots__ = ("target_bytes", "max_blocks", "blocks", "size", "done", "aborted")
+
+    def __init__(self, target_bytes: int, max_blocks: int):
+        self.target_bytes = target_bytes
+        self.max_blocks = max_blocks
+        self.blocks: List[bytes] = []
+        self.size = 0
+        self.done = threading.Event()
+        self.aborted = False
+
+    def append(self, data: bytes) -> None:
+        if self.done.is_set() or len(self.blocks) >= self.max_blocks:
+            return
+        self.blocks.append(data)
+        self.size += len(data)
+        if self.size >= self.target_bytes:
+            self.done.set()
+
+    def abort(self) -> None:
+        self.aborted = True
+        self.done.set()
+
+    def pcm(self) -> bytes:
+        # Truncate the last block so the result is exactly the requested length.
+        return b"".join(self.blocks)[: self.target_bytes]
 
 
 class VoskSTT:
@@ -42,6 +97,7 @@ class VoskSTT:
         on_fault: Optional[Callable[[str], None]] = None,
         blocksize: int = 4000,
         max_queue_blocks: int = 20,
+        max_capture_seconds: float = 10.0,
     ):
         # Imported here so the package (and its fakes/tests) can be used on
         # machines without vosk or PortAudio installed.
@@ -59,6 +115,7 @@ class VoskSTT:
         self.on_command = on_command
         self.on_fault = on_fault
         self.fault_reason: Optional[str] = None
+        self.max_capture_seconds = max_capture_seconds
 
         # Vosk silently drops words it doesn't know, which would turn a
         # phrase like "unmute" into nothing. Check every word up front and
@@ -95,11 +152,27 @@ class VoskSTT:
         self._reset_pending = threading.Event()
         self._stream = None
         self._worker: Optional[threading.Thread] = None
+        self._init_capture_state()
+
+    def _init_capture_state(self):
+        # Question capture (see capture()). The lock serialises callers;
+        # the event is what the audio callback checks.
+        self._capture_lock = threading.Lock()
+        self._capturing = threading.Event()
+        self._capture: Optional[_CaptureBuffer] = None
 
     def _audio_callback(self, indata, frames, time_info, status):
         # Runs on the PortAudio thread: no logging or blocking here.
         if status:
             self._overflows += 1
+        if self._capturing.is_set():
+            # Question recording: divert to the capture buffer, never to
+            # the recogniser. Checked before mute so a mute that lands
+            # mid-capture is handled by capture() (abort), not here.
+            buf = self._capture
+            if buf is not None:
+                buf.append(bytes(indata))
+            return
         if self._muted.is_set():
             # Dropped at the source (not just skipped downstream) so mic
             # audio captured while the speaker is talking never queues up
@@ -118,12 +191,58 @@ class VoskSTT:
         speaker is playing and briefly after (to cover echo/room tail)."""
         if muted:
             self._muted.set()
+            # An alert (HIGH TTS) always wins over a question in progress:
+            # abandon the capture rather than record our own speaker.
+            buf = self._capture
+            if buf is not None:
+                buf.abort()
         else:
             self._muted.clear()
             # Drop any partial utterance state accumulated right up to the
             # mute boundary so we don't splice pre-mute audio onto whatever
             # comes next. Applied by the worker thread.
             self._reset_pending.set()
+
+    @property
+    def is_capturing(self) -> bool:
+        return self._capturing.is_set()
+
+    def capture(self, seconds: float, *, timeout: Optional[float] = None) -> Optional[bytes]:
+        """Record `seconds` of raw mic audio, bypassing the recogniser, and
+        return it as a 16 kHz mono 16-bit WAV. Blocks the caller for
+        ~`seconds`. Returns None if capture could not start (already
+        capturing, muted, not running) or did not complete in time (stream
+        stalled, or muted mid-capture by a speech alert). Never raises for
+        those cases; a bad `seconds` is a caller bug and raises ValueError.
+
+        Duration is enforced by sample count, not wall clock; `timeout`
+        (default seconds + 1) is only the safety net for a stalled stream.
+        Afterwards the recogniser is reset since its utterance boundary is
+        gone. Call from a worker thread, never from a speech handler."""
+        if not (0 < seconds <= self.max_capture_seconds):
+            raise ValueError(
+                f"capture seconds must be in (0, {self.max_capture_seconds}], got {seconds!r}")
+        if not self._running.is_set() or self._muted.is_set():
+            return None
+        if not self._capture_lock.acquire(blocking=False):
+            return None
+        try:
+            frames = int(seconds * self.samplerate)
+            buf = _CaptureBuffer(frames * SAMPLE_WIDTH, frames // self.blocksize + 2)
+            self._capture = buf
+            self._capturing.set()
+            if self._muted.is_set():
+                # Mute landed between the check above and arming the buffer.
+                return None
+            finished = buf.done.wait(seconds + 1.0 if timeout is None else timeout)
+            if not finished or buf.aborted:
+                return None
+            return pcm16_to_wav(buf.pcm(), self.samplerate)
+        finally:
+            self._capturing.clear()
+            self._capture = None
+            self._reset_pending.set()
+            self._capture_lock.release()
 
     def start(self):
         if self._running.is_set():

@@ -54,6 +54,11 @@ class SpeechConfig:
     wake_window_seconds: float = 5.0
     always_on_commands: Tuple[str, ...] = ("stop speaking",)
 
+    # Question capture for the assistant (raw mic audio after the wake
+    # command, bypassing the recogniser). Provisional demo values.
+    question_seconds: float = 3.0
+    max_capture_seconds: float = 10.0
+
     def __post_init__(self):
         # Normalise list inputs to tuples and phrases to lower case.
         object.__setattr__(self, "grammar", tuple(_norm(p) for p in self.grammar))
@@ -75,10 +80,16 @@ class SpeechConfig:
             v = getattr(self, name)
             if not isinstance(v, int) or isinstance(v, bool) or v < lo:
                 errors.append(f"{name} must be an int >= {lo}, got {v!r}")
-        for name in ("echo_guard_seconds", "max_command_age_seconds", "dedup_window_seconds", "wake_window_seconds"):
+        for name in ("echo_guard_seconds", "max_command_age_seconds", "dedup_window_seconds", "wake_window_seconds",
+                     "question_seconds", "max_capture_seconds"):
             v = getattr(self, name)
             if not isinstance(v, (int, float)) or isinstance(v, bool) or v < 0 or v > 60:
                 errors.append(f"{name} must be a number in [0, 60], got {v!r}")
+        if isinstance(self.question_seconds, (int, float)) and isinstance(self.max_capture_seconds, (int, float)):
+            if not 0 < self.question_seconds <= self.max_capture_seconds:
+                errors.append(
+                    f"question_seconds must satisfy 0 < question_seconds <= max_capture_seconds "
+                    f"({self.max_capture_seconds!r}), got {self.question_seconds!r}")
         for name in ("tts_device", "stt_device"):
             v = getattr(self, name)
             if v is not None and (not isinstance(v, int) or isinstance(v, bool) or v < 0):

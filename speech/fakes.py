@@ -11,6 +11,7 @@ from __future__ import annotations
 import time
 from typing import Callable, List, Optional
 
+from .stt import SAMPLE_WIDTH, pcm16_to_wav
 from .tts import QueuedTTS
 
 
@@ -50,10 +51,16 @@ class FakeSTT:
     `"replay"` when feeding a recorded transcript.
     """
 
-    def __init__(self, unsupported_phrases: Optional[List[str]] = None, source_mode: str = "simulated"):
+    def __init__(self, unsupported_phrases: Optional[List[str]] = None, source_mode: str = "simulated",
+                 samplerate: int = 16000, max_capture_seconds: float = 10.0):
         if source_mode not in ("simulated", "replay"):
             raise ValueError("FakeSTT source_mode must be 'simulated' or 'replay'")
         self.source_mode = source_mode
+        self.samplerate = samplerate
+        self.max_capture_seconds = max_capture_seconds
+        self.capture_fails = False          # simulate a stalled/aborted capture
+        self.capture_calls: List[float] = []  # seconds of each successful capture
+        self.is_capturing = False
         self.on_command: Optional[Callable[[str, float, str], None]] = None
         self.on_fault: Optional[Callable[[str], None]] = None
         self.fault_reason: Optional[str] = None
@@ -83,6 +90,20 @@ class FakeSTT:
         if self.on_command:
             self.on_command(text, time.monotonic() if recognized_at is None else recognized_at, self.source_mode)
         return True
+
+    def capture(self, seconds: float, *, timeout: Optional[float] = None) -> Optional[bytes]:
+        """Same contract as VoskSTT.capture: bounds raise, muted/stopped/
+        failing return None, otherwise a WAV of silence of exactly `seconds`.
+        Returns immediately rather than blocking."""
+        if not (0 < seconds <= self.max_capture_seconds):
+            raise ValueError(
+                f"capture seconds must be in (0, {self.max_capture_seconds}], got {seconds!r}")
+        if not self.started or self.muted or self.capture_fails:
+            return None
+        self.capture_calls.append(seconds)
+        self.resets += 1  # recogniser reset after capture, like the real backend
+        frames = int(seconds * self.samplerate)
+        return pcm16_to_wav(bytes(frames * SAMPLE_WIDTH), self.samplerate)
 
     def fail(self, reason: str):
         """Simulate a recognition fault."""
