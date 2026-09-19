@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "cloud_enabled": false,
+  "omni_model": "qwen3.5-omni-flash",
+  "omni_base_url": "https://yibuapi.com/v1",
+  "omni_timeout_s": 6.0,
+  "max_scene_age_ms": 500,
+  "answer_within_ms": 6000,
+  "frame_jpeg_width": 640,
+  "audit_log": "../omni/artifacts/yibu_api_calls.jsonl",
+  "describe_command": "describe",
+  "direct_question_command": "what's in front of me",
+  "direct_question_prompt": "What is in front of me in the camera view?"
+}

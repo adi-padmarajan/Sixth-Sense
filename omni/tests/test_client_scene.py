@@ -20,7 +20,7 @@ from scene_state import SceneState
 from omni import _request_worker
 from omni.client import AssistantResult, ClientConfig, OmniClient
 from omni.fake import FakeOmniClient
-from omni.scene import describe_and_speak, describe_scene
+from omni.scene import AUDIO_QUESTION_PROMPT, TEXT_QUESTION_PREFIX, describe_and_speak, describe_scene
 
 
 class ClientTests(unittest.TestCase):
@@ -212,7 +212,7 @@ class SceneTests(unittest.TestCase):
         return describe_scene(self.state, client, clock=self.clock, **kwargs)
 
     def test_original_jpeg_evidence_age_and_single_read(self):
-        client = Mock()
+        client = Mock(config=ClientConfig(timeout_s=6))
         client.complete.return_value = AssistantResult("success", "A chair on the left.")
         self.now += 0.08
         with patch.object(self.state, "read", wraps=self.state.read) as read:
@@ -227,6 +227,8 @@ class SceneTests(unittest.TestCase):
         self.assertEqual(decoded.shape, self.frame.shape)
         self.assertGreater(decoded[0, 0, 2], 240)  # BGR red survives encoding
         self.assertEqual(wav, b"wav")
+        self.assertTrue(prompt.endswith(AUDIO_QUESTION_PROMPT))
+        self.assertNotIn(TEXT_QUESTION_PREFIX, prompt)
 
     def test_missing_and_stale_never_call_client(self):
         client = Mock()
@@ -251,32 +253,85 @@ class SceneTests(unittest.TestCase):
 
     def test_late_answer_is_discarded(self):
         def late(*args, **kwargs):
-            self.now += 1
-            return AssistantResult("success", "Old answer")
-        self.assertEqual(self.describe(Mock(complete=late)).reason, "stale_scene")
+            self.now += 6.01
+            return AssistantResult("success", "Old answer", call_id="late-call")
+        speech = Mock()
+        result = describe_and_speak(self.state, Mock(config=None, complete=late), speech, clock=self.clock)
+        self.assertEqual(result.reason, "stale_scene")
+        self.assertEqual(result.call_id, "late-call")
+        self.assertEqual(result.source_mode, "simulated")
+        speech.speak.assert_not_called()
 
     def test_session_reset_discards_in_flight_answer(self):
         def restarted(*args, **kwargs):
             self.state.reset()
             self.state.update(self.frame, self.boxes, {7: "chair"}, "simulated")
             return AssistantResult("success", "Old session answer")
-        self.assertEqual(self.describe(Mock(complete=restarted)).reason, "stale_scene")
+        speech = Mock()
+        result = describe_and_speak(self.state, Mock(config=None, complete=restarted), speech, clock=self.clock)
+        self.assertEqual(result.reason, "stale_scene")
+        speech.speak.assert_not_called()
 
     def test_speech_queue_ttl_is_remaining_scene_lifetime(self):
         self.now += 0.4
         speech = Mock()
         result = describe_and_speak(self.state, FakeOmniClient(), speech, clock=self.clock)
         self.assertEqual(result.source_mode, "simulated")
-        self.assertAlmostEqual(speech.speak.call_args.kwargs["ttl_seconds"], 0.1)
+        self.assertAlmostEqual(speech.speak.call_args.kwargs["ttl_seconds"], 5.6)
 
     def test_empty_detections_do_not_become_all_clear(self):
         self.state.update(self.frame, None, {}, "simulated")
-        client = Mock()
+        client = FakeOmniClient()
         result = self.describe(client)
-        self.assertEqual(result.reason, "no_detections")
-        self.assertIn("unrecognized objects may still be present", result.text)
-        self.assertNotIn("clear", result.text)
-        client.complete.assert_not_called()
+        self.assertEqual(result.status, "success")
+        self.assertEqual(client.calls, 1)
+        self.assertIn("Detected (age 0 ms): none", client.last_call["prompt"])
+        self.assertIn("Empty detections do not establish that the area is clear", client.last_call["prompt"])
+
+    def test_answer_budget_is_separate_and_capped_by_client(self):
+        self.now += 0.4
+        client = FakeOmniClient()
+        result = self.describe(client, answer_within_s=4)
+        self.assertAlmostEqual(client.last_call["timeout_s"], 3.6)
+        self.assertEqual(result.expires_at, 14)
+        client.config = ClientConfig(timeout_s=2)
+        self.describe(client, answer_within_s=4)
+        self.assertEqual(client.last_call["timeout_s"], 2)
+
+    def test_seconds_long_response_is_accepted_with_remaining_speech_ttl(self):
+        def slow(*args, **kwargs):
+            self.assertAlmostEqual(kwargs["timeout_s"], 5.6)
+            self.now += 4
+            return AssistantResult("success", "A chair.")
+        self.now += 0.4
+        speech = Mock()
+        result = describe_and_speak(self.state, Mock(config=None, complete=slow), speech, clock=self.clock)
+        self.assertEqual(result.status, "success")
+        self.assertAlmostEqual(speech.speak.call_args.kwargs["ttl_seconds"], 1.6)
+
+    def test_text_question_keeps_prefix_and_no_audio(self):
+        client = FakeOmniClient()
+        self.describe(client, prompt="Which objects are visible?")
+        self.assertTrue(client.last_call["prompt"].endswith(TEXT_QUESTION_PREFIX + "Which objects are visible?"))
+        self.assertNotIn(AUDIO_QUESTION_PROMPT, client.last_call["prompt"])
+        self.assertIsNone(client.last_call["wav"])
+
+    def test_audio_wording_is_explicit_about_the_wearer(self):
+        self.assertEqual(AUDIO_QUESTION_PROMPT, "The audio is the wearer's spoken question. "
+                         "Answer it in one short sentence using only the image and the detection list.")
+        self.assertEqual(TEXT_QUESTION_PREFIX, "Question: ")
+
+    def test_invalid_freshness_windows(self):
+        for kwargs in ({"max_age_s": 0}, {"max_age_s": float("nan")},
+                       {"max_age_s": float("inf")}, {"answer_within_s": 0},
+                       {"answer_within_s": float("nan")}, {"answer_within_s": float("inf")},
+                       {"max_age_s": 2, "answer_within_s": 1}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                self.describe(FakeOmniClient(), **kwargs)
+
+    def test_input_at_exact_freshness_boundary_can_be_sent(self):
+        self.now += 0.5
+        self.assertEqual(self.describe(FakeOmniClient()).status, "success")
 
     def test_encoding_failure_is_structured(self):
         with patch("cv2.imencode", return_value=(False, None)):

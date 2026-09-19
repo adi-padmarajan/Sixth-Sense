@@ -9,6 +9,13 @@ from typing import Protocol
 from .client import AssistantResult
 
 
+AUDIO_QUESTION_PROMPT = (
+    "The audio is the wearer's spoken question. Answer it in one short sentence "
+    "using only the image and the detection list."
+)
+TEXT_QUESTION_PREFIX = "Question: "
+
+
 class SceneReader(Protocol):
     @property
     def session_generation(self) -> int: ...
@@ -18,37 +25,39 @@ class SceneReader(Protocol):
 
 def describe_scene(state: SceneReader, client, *, prompt: str = "What is in the camera view?",
                    wav: bytes | None = None, max_age_s: float = 0.5,
+                   answer_within_s: float = 6.0,
                    jpeg_width: int = 640, clock=time.monotonic) -> AssistantResult:
     """Use the same monotonic clock as SceneState, including for fake-clock tests.
 
     No imports of the hyphenated CV directory or YOLO are needed: the reader is
     structural. Input freshness is checked before/after JPEG encoding; the
-    request is limited to the remaining lifetime of this same snapshot.
+    request and answer use a separate lifetime for this same snapshot.
     Call on an assistant worker, not the CV or speech-dispatch thread.
     """
-    if not math.isfinite(max_age_s) or max_age_s <= 0 or jpeg_width <= 0:
-        raise ValueError("max_age_s and jpeg_width must be positive")
+    if (not math.isfinite(max_age_s) or max_age_s <= 0
+            or not math.isfinite(answer_within_s) or answer_within_s < max_age_s):
+        raise ValueError("answer_within_s >= max_age_s > 0 must be finite")
+    if type(jpeg_width) is not int or jpeg_width <= 0:
+        raise ValueError("jpeg_width must be a positive integer")
     snapshot = state.read(max_age_s=max_age_s)
     if snapshot is None:
         return AssistantResult.unavailable("missing_or_stale_scene", camera=True)
     generation = snapshot.session_generation
 
-    def remaining():
+    def age_now():
         if state.session_generation != generation:
-            return 0.0
+            return math.inf
         age = clock() - snapshot.captured_at
         if not math.isfinite(age) or age < 0:
-            return 0.0
-        return max_age_s - age
+            return math.inf
+        return age
 
-    if remaining() <= 0:
-        return AssistantResult.unavailable("stale_scene", camera=True)
-    if not snapshot.detections:
-        # Never turn an empty detector output into an API-generated all-clear.
-        return AssistantResult("success", "No objects were detected in the camera view; "
-                               "unrecognized objects may still be present.", "no_detections",
-                               expires_at=snapshot.captured_at + max_age_s,
-                               source_mode=snapshot.source_mode)
+    def unavailable(reason, *, call_id=None):
+        return replace(AssistantResult.unavailable(reason, camera=True),
+                       source_mode=snapshot.source_mode, call_id=call_id)
+
+    if age_now() > max_age_s:
+        return unavailable("stale_scene")
 
     import cv2  # no camera/window creation; only encode the original BGR pixels
 
@@ -59,38 +68,48 @@ def describe_scene(state: SceneReader, client, *, prompt: str = "What is in the 
             frame = cv2.resize(frame, (jpeg_width, height), interpolation=cv2.INTER_AREA)
         encoded, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
         if not encoded:
-            return AssistantResult.unavailable("encoding_failed", camera=True)
+            return unavailable("encoding_failed")
         data = jpeg.tobytes()
     except (cv2.error, ValueError):
-        return AssistantResult.unavailable("encoding_failed", camera=True)
-    lifetime = remaining()
+        return unavailable("encoding_failed")
+    age = age_now()
+    if age > max_age_s:
+        return unavailable("stale_scene")
+    lifetime = answer_within_s - age
     if lifetime <= 0:
-        return AssistantResult.unavailable("stale_scene", camera=True)
-    age = max_age_s - lifetime
+        return unavailable("stale_scene")
+    config = getattr(client, "config", None)
+    budget = min(lifetime, config.timeout_s) if config is not None else lifetime
     # Same format as the CV helper; no import shim/global sys.path mutation.
     detections = ", ".join(f"{d.class_name} {d.region} {d.conf:.2f}" for d in snapshot.detections)
     evidence = (f"Source: {snapshot.source_mode}; frame sequence: {snapshot.sequence}.\n"
-                f"Detected (age {age * 1000:.0f} ms): {detections}\n"
-                "Age is since YOLO result receipt, not camera exposure.\n")
-    result = client.complete(evidence + "Question: " + prompt, data, wav, timeout_s=lifetime)
-    if remaining() <= 0:
-        return AssistantResult.unavailable("stale_scene", camera=True)
-    return replace(result, expires_at=snapshot.captured_at + max_age_s, source_mode=snapshot.source_mode)
+                f"Detected (age {age * 1000:.0f} ms): {detections or 'none'}\n"
+                "Age is since YOLO result receipt, not camera exposure.\n"
+                "Empty detections do not establish that the area is clear.\n")
+    question = AUDIO_QUESTION_PROMPT if wav is not None else TEXT_QUESTION_PREFIX + prompt
+    result = client.complete(evidence + question, data, wav, timeout_s=budget)
+    if age_now() > answer_within_s:
+        return unavailable("stale_scene", call_id=result.call_id)
+    return replace(result, expires_at=snapshot.captured_at + answer_within_s,
+                   source_mode=snapshot.source_mode)
 
 
 def describe_and_speak(state, client, speech, **kwargs) -> AssistantResult:
     """Explicit speech handoff; no microphone registration or devices on import.
 
-    The orchestrator must invoke this on its assistant worker and cancel that
-    worker's requests on session changes. This function does not start threads.
+    Invoke on an assistant worker. Expired/session-invalid results stay silent;
+    missing input and service failures get a status message. No threads start here.
     """
     from speech import Priority
 
     result = describe_scene(state, client, **kwargs)
+    if result.reason == "stale_scene":
+        return result
     clock = kwargs.get("clock", time.monotonic)
     ttl = 0.5 if result.expires_at is None else result.expires_at - clock()
     if ttl <= 0:
-        return AssistantResult.unavailable("stale_scene", camera=True)
+        return replace(result, status="unavailable", text="Camera view is unavailable",
+                       reason="stale_scene")
     speech.speak(result.text, priority=Priority.LOW if result.status == "success" else Priority.NORMAL,
                  ttl_seconds=ttl)
     return result
