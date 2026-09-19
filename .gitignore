@@ -35,3 +35,6 @@ Thumbs.db
 runs/
 *.pt
 !Computer\ Vision/yolo26n-objv1-150.pt
+
+# Speech models
+speech/models
