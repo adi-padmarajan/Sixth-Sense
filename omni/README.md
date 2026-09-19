@@ -1,12 +1,14 @@
 # yibuapi Direct Call and Token Archiving Samples
 
+This directory is a Python package inside the sixth-sense repo; run all commands from the repository root.
+
 This set of samples has no built-in key, does not read key files from the repository, and does not use a proxy. Credentials are only read from the process environment variable `YIBU_API_KEY`.
 
 ## Installation
 
+From the repo root, in the project venv (`httpx` and `websockets` are listed in the top-level `requirements.txt`):
+
 ```bash
-python -m venv .venv
-. .venv/bin/activate
 python -m pip install -r requirements.txt
 export YIBU_API_KEY='fill in within the current shell, do not write into code'
 ```
@@ -15,26 +17,26 @@ export YIBU_API_KEY='fill in within the current shell, do not write into code'
 
 ```bash
 # Qwen3.5 Omni Flash: HTTP Chat Completions
-python qwen35_omni_flash.py --prompt 'Hello, introduce yourself in one sentence'
+python -m omni.qwen35_omni_flash --prompt 'Hello, introduce yourself in one sentence'
 
 # Qwen3.5 Omni Plus: HTTP Chat Completions
-python qwen35_omni_plus.py --prompt 'Hello, introduce yourself in one sentence'
+python -m omni.qwen35_omni_plus --prompt 'Hello, introduce yourself in one sentence'
 
 # Qwen3.5 Omni Plus Realtime: WebSocket
-python qwen35_omni_plus_realtime.py --prompt 'Hello, introduce yourself in one sentence'
+python -m omni.qwen35_omni_plus_realtime --prompt 'Hello, introduce yourself in one sentence'
 
 # Gemini 3.1 Flash Live: Gemini Live WebSocket
-python gemini31_flash_live.py --prompt 'Answer briefly: which country is Beijing the capital of?'
+python -m omni.gemini31_flash_live --prompt 'Answer briefly: which country is Beijing the capital of?'
 
 # Other generic OpenAI-compatible models
-python chat_completions_generic.py --model 'exact model ID' --prompt 'Hello'
+python -m omni.chat_completions_generic --model 'exact model ID' --prompt 'Hello'
 ```
 
 The Qwen HTTP Omni samples also support local images or audio:
 
 ```bash
-python qwen35_omni_flash.py --prompt 'Describe the image' --image /path/example.jpg
-python qwen35_omni_plus.py --prompt 'Transcribe and summarize the audio' --audio /path/example.wav
+python -m omni.qwen35_omni_flash --prompt 'Describe the image' --image /path/example.jpg
+python -m omni.qwen35_omni_plus --prompt 'Transcribe and summarize the audio' --audio /path/example.wav
 ```
 
 Gemini Live natively returns audio; the script outputs text via `outputAudioTranscription`. Use `--audio-out reply.pcm` to save the raw audio bytes.
@@ -52,7 +54,7 @@ export YIBU_AUDIT_LOG=/path/yibu_api_calls.jsonl
 Summarize manually after the task is complete:
 
 ```bash
-python summarize_usage.py
+python -m omni.summarize_usage
 ```
 
 By default this generates:
@@ -74,6 +76,6 @@ As a result, `HTTP_PROXY`, `HTTPS_PROXY`, and `ALL_PROXY` are never read.
 ## Offline Testing
 
 ```bash
-python -m unittest discover -s tests -v
-python -m compileall -q .
+python -m unittest discover -s omni/tests -t . -v
+python -m compileall -q omni
 ```

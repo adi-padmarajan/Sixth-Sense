@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 from websockets.sync.client import connect
 
-from yibu_audit import append_audit_record, require_env_api_key
+from .yibu_audit import append_audit_record, require_env_api_key
 
 
 DEFAULT_MODEL = "gemini-3.1-flash-live-preview"

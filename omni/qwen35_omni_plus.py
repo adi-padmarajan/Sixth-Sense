@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """yibuapi direct sample: qwen3.5-omni-plus over Chat Completions."""
-from yibu_http import run_omni_cli
+from .yibu_http import run_omni_cli
 
 
 if __name__ == "__main__":

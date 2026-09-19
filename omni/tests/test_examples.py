@@ -5,9 +5,9 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from summarize_usage import summarize
-from yibu_audit import append_audit_record, normalize_usage, require_env_api_key
-from yibu_http import build_omni_messages, extract_text
+from omni.summarize_usage import summarize
+from omni.yibu_audit import append_audit_record, normalize_usage, require_env_api_key
+from omni.yibu_http import build_omni_messages, extract_text
 
 
 class UsageTests(unittest.TestCase):

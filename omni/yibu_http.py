@@ -12,7 +12,7 @@ from typing import Any, Mapping, Sequence
 
 import httpx
 
-from yibu_audit import append_audit_record, require_env_api_key
+from .yibu_audit import append_audit_record, require_env_api_key
 
 
 DEFAULT_BASE_URL = "https://yibuapi.com/v1"

@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from yibu_http import DEFAULT_BASE_URL, chat_completion, require_api_key
+from .yibu_http import DEFAULT_BASE_URL, chat_completion, require_api_key
 
 
 def main() -> int:
