@@ -42,11 +42,32 @@ class VoskSTT:
 
         self._audio_q: "queue.Queue[bytes]" = queue.Queue()
         self._running = threading.Event()
+        self._muted = threading.Event()
         self._stream: Optional[sd.RawInputStream] = None
         self._worker: Optional[threading.Thread] = None
 
     def _audio_callback(self, indata, frames, time_info, status):
+        if self._muted.is_set():
+            # Dropped at the source (not just skipped downstream) so mic
+            # audio captured while the speaker is talking never queues up
+            # and gets processed as a command once we unmute.
+            return
         self._audio_q.put(bytes(indata))
+
+    def set_muted(self, muted: bool):
+        """Stop (or resume) feeding mic audio to the recognizer.
+
+        Used to keep the TTS output from being picked up by the mic and
+        misrecognized as a voice command -- callers should mute while the
+        speaker is playing and briefly after (to cover echo/room tail)."""
+        if muted:
+            self._muted.set()
+        else:
+            self._muted.clear()
+            # Drop any partial utterance state accumulated right up to the
+            # mute boundary so we don't splice pre-mute audio onto whatever
+            # comes next.
+            self.recognizer.Reset()
 
     def start(self):
         self._running.set()

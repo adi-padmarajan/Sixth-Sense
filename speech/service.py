@@ -22,6 +22,7 @@ extension point. Don't build that until you actually need it.
 
 from __future__ import annotations
 
+import threading
 from collections import defaultdict
 from typing import Callable, Dict, List, Optional
 
@@ -36,6 +37,10 @@ class SpeechService:
         self._tts: Optional[PiperTTS] = None
         self._stt: Optional[VoskSTT] = None
         self._handlers: Dict[str, List[Callable[[], None]]] = defaultdict(list)
+        # How long to keep the mic muted after TTS playback ends, to cover
+        # speaker/room echo tail and mic latency before we trust input again.
+        self._echo_guard_seconds = 0.3
+        self._unmute_timer: Optional[threading.Timer] = None
 
     def configure(
         self,
@@ -45,15 +50,42 @@ class SpeechService:
         grammar: List[str],
         tts_device: Optional[int] = None,
         stt_device: Optional[int] = None,
+        echo_guard_seconds: float = 0.3,
     ):
         """Call this once at startup with your model paths and command
         grammar. Kept separate from __init__ so `speech` can be imported
         anywhere as a singleton before models are actually loaded."""
-        self._tts = PiperTTS(tts_model_path, tts_config_path, device=tts_device)
+        self._echo_guard_seconds = echo_guard_seconds
         self._stt = VoskSTT(
             stt_model_path, grammar, device=stt_device, on_command=self._dispatch
         )
+        # Mute the mic for the duration of TTS playback (plus a short tail)
+        # so the STT never mistakes our own voice output for a command.
+        self._tts = PiperTTS(
+            tts_model_path,
+            tts_config_path,
+            device=tts_device,
+            on_speak_start=self._on_speak_start,
+            on_speak_end=self._on_speak_end,
+        )
         self._stt.start()
+
+    def _on_speak_start(self):
+        if self._unmute_timer:
+            self._unmute_timer.cancel()
+        if self._stt:
+            self._stt.set_muted(True)
+
+    def _on_speak_end(self):
+        if self._unmute_timer:
+            self._unmute_timer.cancel()
+        self._unmute_timer = threading.Timer(self._echo_guard_seconds, self._unmute_stt)
+        self._unmute_timer.daemon = True
+        self._unmute_timer.start()
+
+    def _unmute_stt(self):
+        if self._stt:
+            self._stt.set_muted(False)
 
     def speak(self, text: str, priority: Priority = Priority.NORMAL, interrupt: bool = False):
         if not self._tts:
@@ -70,6 +102,8 @@ class SpeechService:
             handler()
 
     def shutdown(self):
+        if self._unmute_timer:
+            self._unmute_timer.cancel()
         if self._tts:
             self._tts.shutdown()
         if self._stt:
