@@ -9,7 +9,7 @@ first. This directory owns the **local vision software only**:
 
 `camera / image / video → YOLO detection + tracking → SceneState → preview or consumer`
 
-The consumer is the planned `omni/` assistant layer (see the architecture doc).
+The consumer is the `omni/scene.py` assistant layer (see the architecture doc).
 It reads the latest frame and detection list from here; it never drives motors,
 haptics, or speech from this directory.
 
@@ -98,7 +98,9 @@ computer-vision/
 The `SceneState` contract (field names, region rule, `read(max_age_s)`, `reset()`,
 `to_text()`) is specified in `SYSTEM_ARCHITECTURE.md` §6 and implemented in
 `scene_state.py`. Keep the docs aligned if the contract changes. `reset()` clears
-the snapshot and restarts sequence at 1 on the next update. Automatic mid-stream
+the snapshot and restarts sequence at 1 on the next update. It increments
+`session_generation` (also present on snapshots) so consumers can discard answers
+from a previous session without reading a second frame. Automatic mid-stream
 reconnect detection and tracker reset remain unimplemented.
 
 ## 5. Tests

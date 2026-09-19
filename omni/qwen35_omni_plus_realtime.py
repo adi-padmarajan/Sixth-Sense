@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 
 import websockets
 
-from yibu_audit import append_audit_record, require_env_api_key
+from .yibu_audit import append_audit_record, require_env_api_key
 
 
 DEFAULT_MODEL = "qwen3.5-omni-plus-realtime"

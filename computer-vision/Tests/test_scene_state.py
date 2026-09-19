@@ -113,6 +113,16 @@ class SceneStateTests(unittest.TestCase):
         self.assertIsNone(self.state.read())
         self.assertIsNone(self.state.age_s())
 
+    def test_session_generation_changes_on_reset_not_update(self):
+        self.publish()
+        first = self.state.read()
+        self.publish()
+        self.assertEqual(self.state.read().session_generation, first.session_generation)
+        self.state.reset()
+        self.assertNotEqual(self.state.session_generation, first.session_generation)
+        self.publish()
+        self.assertEqual(self.state.read().session_generation, self.state.session_generation)
+
     def test_none_and_empty_boxes_still_publish_snapshot(self):
         for boxes in (None, fake_boxes()):
             with self.subTest(boxes=boxes):

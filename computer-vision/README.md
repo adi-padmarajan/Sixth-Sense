@@ -87,6 +87,7 @@ positions in the camera view, not verified wearer-relative directions.
 | `detections` | Read-only `list[Detection]`; empty is valid evidence from a received frame |
 | `source_mode` | `live`, `replay`, or `simulated`; the tracking script uses `live` for integer `SOURCE`, otherwise `replay` |
 | `sequence` | Starts at 1, increments once per successful update; restarts at 1 after reset |
+| `session_generation` | Reset counter shared with `SceneState.session_generation`; lets consumers discard an in-flight response after a session change |
 
 Snapshot fields and detections reject normal mutation; pixels have immutable
 byte backing. Changing the source frame cannot change a published snapshot. Each
@@ -106,7 +107,8 @@ There is no frame queue or JPEG encoding.
   when the state is empty. It can refer to a newer publication than a preceding
   `read()`: compute age from the returned snapshot for a consistent description.
 - `reset()` clears current evidence and the sequence counter. `main()` resets at
-  entry and in its `finally` block. Callers must reset on any separately managed
+  entry and in its `finally` block. Reset also increments `session_generation` so
+  the OMNI adapter can reject old-session responses. Callers must reset on any separately managed
   source restart/change and reset the corresponding YOLO tracker. Automatic
   mid-stream reconnect detection is not implemented.
 - The clock is injectable (`SceneState(clock=fake_clock)`) for deterministic tests.

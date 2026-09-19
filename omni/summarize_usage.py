@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from yibu_audit import DEFAULT_AUDIT_LOG
+from .yibu_audit import DEFAULT_AUDIT_LOG
 
 
 FIELDS = ("input_tokens", "output_tokens", "total_tokens")

@@ -1,6 +1,6 @@
 # yibuapi Sample Code Release Package
 
-This package provides the following directly runnable Python samples:
+This package lives at `omni/` inside the sixth-sense repo and is imported as the `omni` package. Run every command below from the repository root. It provides the following runnable Python samples (`python -m omni.<name>`):
 
 - `qwen35_omni_flash.py`: `qwen3.5-omni-flash` HTTP Chat Completions
 - `qwen35_omni_plus.py`: `qwen3.5-omni-plus` HTTP Chat Completions
@@ -23,9 +23,9 @@ See the `README.md` inside the package for full installation, invocation, no-pro
 
 As of 2026-09-18, minimal real online calls were completed for all five official entry points, each successfully returning content and usage. Historical transient failures and specific call ledgers are not included in the shared package. The package also includes key-free unit tests.
 
+From the repo root, in the project venv:
+
 ```bash
-python -m venv .venv
-. .venv/bin/activate
 python -m pip install -r requirements.txt
-python -m unittest discover -s tests -v
+python -m unittest discover -s omni/tests -t . -v
 ```
