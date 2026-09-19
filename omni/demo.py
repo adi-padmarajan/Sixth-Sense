@@ -15,8 +15,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true", help="Send one synthetic image to the cloud; requires YIBU_API_KEY")
     parser.add_argument("--audit-log", type=Path, default=Path("/tmp/sixth-sense-demo-audit.jsonl"))
-    parser.add_argument("--max-age", type=float, default=5.0,
-                        help="Explicit synthetic-demo freshness budget, not a validated live-view setting")
     args = parser.parse_args()
 
     import cv2
@@ -42,7 +40,7 @@ def main():
         speech.attach(tts=tts)
         state.update(frame, boxes, {0: "chair"}, "simulated")
         print(f"source_mode=simulated cloud_enabled={args.live} speech=fake")
-        result = describe_and_speak(state, client, speech, max_age_s=args.max_age)
+        result = describe_and_speak(state, client, speech)
         tts.wait_idle(1)
         print(f"status={result.status} reason={result.reason}")
         print(result.text)
