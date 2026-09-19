@@ -87,8 +87,8 @@ flowchart LR
     SVC --> PIPER --> SPK
 
     ORCH -. "starts / stops / wires" .-> YOLO
-    ORCH -. "" .-> SVC
-    ORCH -. "" .-> CLIENT
+    ORCH -.-> SVC
+    ORCH -.-> CLIENT
 ```
 
 ### Modalities (for the OMNI Live challenge)
