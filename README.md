@@ -3,6 +3,10 @@
 **A real-life Spidey Sense.** A head-worn wearable that turns nearby obstacles into
 directional vibration, and lets you *ask* what the camera sees — hands-free.
 
+<p align="center">
+  <img src="spider-sense.avif" alt="SpideyIRL headband prototype" width="640">
+</p>
+
 > Ever wanted to be Spider-Man? Or maybe you've just related a little too much to
 > Peter Parker lately? Either way, you can't exactly get bitten by a radioactive
 > spider at Hack the North… so we tried the next best thing.
@@ -212,8 +216,7 @@ AGENTS.md / CLAUDE.md    engineering guidance for contributors and coding agents
 
 ## Team
 
-Built at Hack the North 2026 by **Aditya Padmarajan**, **Halie Favron**, and
-**Noah Valentin Klaholz**.
+Built at Hack the North 2026 by **Aditya Padmarajan**, **Halie Favron**, **Noah Valentin Klaholz** and **Chris Dietrich**.
 
 ## License
 
