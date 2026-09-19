@@ -507,7 +507,7 @@ def test_capture_question_without_stt_returns_none(service):
 
 def test_config_validates_question_capture_window(tmp_path):
     cfg = SpeechConfig.load("configs/speech.json", require_models=False)
-    assert cfg.question_seconds == 3.0 and cfg.max_capture_seconds == 10.0
+    assert cfg.question_seconds == 2.0 and cfg.max_capture_seconds == 10.0
     with pytest.raises(ValueError, match="question_seconds"):
         SpeechConfig(question_seconds=12.0, max_capture_seconds=10.0)
     with pytest.raises(ValueError, match="question_seconds"):

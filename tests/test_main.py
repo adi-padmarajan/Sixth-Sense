@@ -83,7 +83,7 @@ def test_describe_captures_and_speaks_with_latency_log(build, caplog):
     assert item.stt.inject("describe")
     assert wait_for(lambda: item.tts.spoken == [item.client.text])
     assert wait_for(lambda: events(caplog, "question_completed"))
-    assert item.stt.capture_calls == [3.0]
+    assert item.stt.capture_calls == [item.speech_cfg.question_seconds]
     assert item.client.last_call["wav"].startswith(b"RIFF")
     record = events(caplog, "question_completed")[0]
     assert record["status"] == "success" and record["source_mode"] == "simulated"
@@ -123,7 +123,7 @@ def test_busy_question_during_request_acknowledges_without_capture(build, caplog
     item.stt.inject("describe")
     assert wait_for(lambda: events(caplog, "question_dropped"))
     assert wait_for(lambda: item.tts.spoken == ["Still answering."])
-    assert item.stt.capture_calls == [3.0]
+    assert item.stt.capture_calls == [item.speech_cfg.question_seconds]
     assert client.calls == 1
     dropped = events(caplog, "question_dropped")[0]
     assert dropped["reason"] == "busy" and dropped["seq"] == 1
@@ -151,7 +151,7 @@ def test_missing_camera_still_captures_then_reports_unavailable(build):
     item = build(populated=False)
     item.stt.inject("describe")
     assert wait_for(lambda: item.tts.spoken == ["Camera view is unavailable"])
-    assert item.stt.capture_calls == [3.0]
+    assert item.stt.capture_calls == [item.speech_cfg.question_seconds]
     assert item.client.calls == 0
 
 
@@ -245,6 +245,8 @@ def test_shutdown_suppresses_answer_and_further_questions(build, caplog):
 def test_assistant_config_loads_and_resolves_paths():
     cfg = AssistantConfig.load("configs/assistant.json")
     assert cfg.omni_timeout_s == 6 and cfg.answer_within_ms == 6000
+    assert cfg.frame_jpeg_width == 480 and cfg.max_tokens == 64
+    assert cfg.client_config().max_tokens == 64
     assert not cfg.cloud_enabled
     assert cfg.audit_log == str(Path("omni/artifacts/yibu_api_calls.jsonl").resolve())
     assert cfg.client_config(cloud_enabled=True).cloud_enabled
@@ -260,6 +262,8 @@ def test_assistant_config_loads_and_resolves_paths():
     ({"frame_jpeg_width": -1}, "frame_jpeg_width"),
     ({"frame_jpeg_width": True}, "frame_jpeg_width"),
     ({"max_scene_age_ms": 0}, "max_scene_age_ms"),
+    ({"max_tokens": 0}, "max_tokens"),
+    ({"max_tokens": 4097}, "max_tokens"),
     ({"omni_timeout_s": 7}, "omni_timeout_s"),
     ({"omni_timeout_s": float("nan")}, "omni_timeout_s"),
     ({"omni_timeout_s": float("inf")}, "omni_timeout_s"),

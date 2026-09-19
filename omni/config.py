@@ -18,7 +18,8 @@ class AssistantConfig:
     omni_timeout_s: float = 6.0
     max_scene_age_ms: int = 500
     answer_within_ms: int = 6000
-    frame_jpeg_width: int = 640
+    frame_jpeg_width: int = 480
+    max_tokens: int = 64
     audit_log: str | None = None
     describe_command: str = "describe"
     direct_question_command: str = "what's in front of me"
@@ -29,7 +30,7 @@ class AssistantConfig:
             raise ValueError("schema_version must be 1")
         if type(self.cloud_enabled) is not bool:
             raise ValueError("cloud_enabled must be a boolean")
-        for name in ("max_scene_age_ms", "answer_within_ms", "frame_jpeg_width"):
+        for name in ("max_scene_age_ms", "answer_within_ms", "frame_jpeg_width", "max_tokens"):
             value = getattr(self, name)
             if type(value) is not int or value <= 0:
                 raise ValueError(f"{name} must be a positive integer")
@@ -59,7 +60,7 @@ class AssistantConfig:
         return ClientConfig(
             cloud_enabled=self.cloud_enabled if cloud_enabled is None else cloud_enabled,
             model=self.omni_model, base_url=self.omni_base_url,
-            timeout_s=self.omni_timeout_s, audit_log=self.audit_log,
+            timeout_s=self.omni_timeout_s, max_tokens=self.max_tokens, audit_log=self.audit_log,
         )
 
     @classmethod
