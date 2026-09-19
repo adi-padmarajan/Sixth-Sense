@@ -7,6 +7,7 @@ import base64
 import json
 import mimetypes
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -22,16 +23,43 @@ def require_api_key() -> str:
     return require_env_api_key("YIBU_API_KEY")
 
 
-def _data_url(path: Path, fallback_mime: str) -> str:
-    mime = mimetypes.guess_type(path.name)[0] or fallback_mime
-    return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+@dataclass(frozen=True)
+class MediaBytes:
+    """In-memory media; mime is required because bytes have no filename to guess from."""
+
+    data: bytes
+    mime: str
+    fmt: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.data:
+            raise ValueError("Media data must not be empty")
+        if not self.mime or "/" not in self.mime:
+            raise ValueError("Media mime must contain a type/subtype")
+
+
+def _encode_data_url(data: bytes, mime: str) -> str:
+    return f"data:{mime};base64," + base64.b64encode(data).decode("ascii")
+
+
+def _data_url(source: Path | MediaBytes, fallback_mime: str) -> str:
+    if isinstance(source, MediaBytes):
+        return _encode_data_url(source.data, source.mime)
+    mime = mimetypes.guess_type(source.name)[0] or fallback_mime
+    return _encode_data_url(source.read_bytes(), mime)
+
+
+def _audio_format(source: Path | MediaBytes) -> str:
+    if isinstance(source, MediaBytes):
+        return source.fmt if source.fmt is not None else source.mime.split("/", 1)[1]
+    return source.suffix.lstrip(".") or "wav"
 
 
 def build_omni_messages(
     prompt: str,
     *,
-    image: Path | None = None,
-    audio: Path | None = None,
+    image: Path | MediaBytes | None = None,
+    audio: Path | MediaBytes | None = None,
     system: str | None = None,
 ) -> list[dict[str, Any]]:
     messages: list[dict[str, Any]] = []
@@ -45,7 +73,7 @@ def build_omni_messages(
         content.append(
             {
                 "type": "input_audio",
-                "input_audio": {"data": _data_url(audio, "audio/wav"), "format": audio.suffix.lstrip(".") or "wav"},
+                "input_audio": {"data": _data_url(audio, "audio/wav"), "format": _audio_format(audio)},
             }
         )
     messages.append({"role": "user", "content": content})
@@ -77,6 +105,7 @@ def chat_completion(
     max_tokens: int = 256,
     temperature: float = 0.2,
     audit_log: str | Path | None = None,
+    timeout: float = 300.0,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
     payload = {
@@ -90,7 +119,7 @@ def chat_completion(
     response_json: dict[str, Any] = {}
     try:
         # trust_env=False is intentional: HTTP(S)_PROXY/ALL_PROXY are ignored.
-        with httpx.Client(timeout=300.0, trust_env=False) as client:
+        with httpx.Client(timeout=timeout, trust_env=False) as client:
             response = client.post(
                 endpoint,
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
