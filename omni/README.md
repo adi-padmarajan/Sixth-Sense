@@ -1,77 +1,77 @@
-# yibuapi 直连调用与 Token 归档样例
+# yibuapi Direct Call and Token Archiving Samples
 
-这组样例不内置 Key、不读取仓库内 Key 文件、不使用代理。凭据只从进程环境变量 `YIBU_API_KEY` 读取。
+This set of samples has no built-in key, does not read key files from the repository, and does not use a proxy. Credentials are only read from the process environment variable `YIBU_API_KEY`.
 
-## 安装
+## Installation
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.txt
-export YIBU_API_KEY='在当前 shell 中填写，不要写进代码'
+export YIBU_API_KEY='fill in within the current shell, do not write into code'
 ```
 
-## 模型入口
+## Model Entry Points
 
 ```bash
-# Qwen3.5 Omni Flash：HTTP Chat Completions
-python qwen35_omni_flash.py --prompt '你好，请用一句话介绍自己'
+# Qwen3.5 Omni Flash: HTTP Chat Completions
+python qwen35_omni_flash.py --prompt 'Hello, introduce yourself in one sentence'
 
-# Qwen3.5 Omni Plus：HTTP Chat Completions
-python qwen35_omni_plus.py --prompt '你好，请用一句话介绍自己'
+# Qwen3.5 Omni Plus: HTTP Chat Completions
+python qwen35_omni_plus.py --prompt 'Hello, introduce yourself in one sentence'
 
-# Qwen3.5 Omni Plus Realtime：WebSocket
-python qwen35_omni_plus_realtime.py --prompt '你好，请用一句话介绍自己'
+# Qwen3.5 Omni Plus Realtime: WebSocket
+python qwen35_omni_plus_realtime.py --prompt 'Hello, introduce yourself in one sentence'
 
-# Gemini 3.1 Flash Live：Gemini Live WebSocket
-python gemini31_flash_live.py --prompt '请简短回答：北京是哪个国家的首都？'
+# Gemini 3.1 Flash Live: Gemini Live WebSocket
+python gemini31_flash_live.py --prompt 'Answer briefly: which country is Beijing the capital of?'
 
-# 其他普通 OpenAI 兼容模型
-python chat_completions_generic.py --model '精确模型 ID' --prompt '你好'
+# Other generic OpenAI-compatible models
+python chat_completions_generic.py --model 'exact model ID' --prompt 'Hello'
 ```
 
-Qwen HTTP Omni 样例还支持本地图片或音频：
+The Qwen HTTP Omni samples also support local images or audio:
 
 ```bash
-python qwen35_omni_flash.py --prompt '描述图片' --image /path/example.jpg
-python qwen35_omni_plus.py --prompt '转写并总结音频' --audio /path/example.wav
+python qwen35_omni_flash.py --prompt 'Describe the image' --image /path/example.jpg
+python qwen35_omni_plus.py --prompt 'Transcribe and summarize the audio' --audio /path/example.wav
 ```
 
-Gemini Live 原生返回音频，脚本通过 `outputAudioTranscription` 输出文本。可用 `--audio-out reply.pcm` 保存原始音频字节。
+Gemini Live natively returns audio; the script outputs text via `outputAudioTranscription`. Use `--audio-out reply.pcm` to save the raw audio bytes.
 
-## Token 审计与汇总
+## Token Auditing and Summarization
 
-每次成功或失败调用都会自动向 `artifacts/yibu_api_calls.jsonl` 追加记录；不需要单独运行 audit。记录中不保存完整 Key、prompt 或模型正文。
+Each successful or failed call automatically appends a record to `artifacts/yibu_api_calls.jsonl`; there is no need to run a separate audit. Records do not store the full key, prompt, or model body text.
 
-也可以指定持久台账位置：
+You can also specify a persistent ledger location:
 
 ```bash
 export YIBU_AUDIT_LOG=/path/yibu_api_calls.jsonl
 ```
 
-任务结束后手动汇总：
+Summarize manually after the task is complete:
 
 ```bash
 python summarize_usage.py
 ```
 
-默认生成：
+By default this generates:
 
 ```text
 artifacts/summary/usage_summary.json
 artifacts/summary/usage_by_model_key_purpose.csv
 ```
 
-支持 OpenAI Chat Completions、OpenAI Realtime 和 Gemini Live 的 usage 字段。上游没有返回 usage 时保持 `null` 并增加 missing 计数，不能把未知消费当成 0。
+Supports usage fields from OpenAI Chat Completions, OpenAI Realtime, and Gemini Live. When the upstream does not return usage, it stays `null` and increments the missing count — unknown consumption must never be treated as 0.
 
-## 无代理保证
+## No-Proxy Guarantee
 
-- HTTP：`httpx.Client(..., trust_env=False)`
-- WebSocket：`websockets.connect(..., proxy=None)`
+- HTTP: `httpx.Client(..., trust_env=False)`
+- WebSocket: `websockets.connect(..., proxy=None)`
 
-因此不会读取 `HTTP_PROXY`、`HTTPS_PROXY` 或 `ALL_PROXY`。
+As a result, `HTTP_PROXY`, `HTTPS_PROXY`, and `ALL_PROXY` are never read.
 
-## 离线测试
+## Offline Testing
 
 ```bash
 python -m unittest discover -s tests -v

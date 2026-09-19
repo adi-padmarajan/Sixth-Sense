@@ -1,27 +1,27 @@
-# yibuapi 样例代码发布包
+# yibuapi Sample Code Release Package
 
-本包提供以下可直接运行的 Python 样例：
+This package provides the following directly runnable Python samples:
 
-- `qwen35_omni_flash.py`：`qwen3.5-omni-flash` HTTP Chat Completions
-- `qwen35_omni_plus.py`：`qwen3.5-omni-plus` HTTP Chat Completions
-- `qwen35_omni_plus_realtime.py`：`qwen3.5-omni-plus-realtime` WebSocket
-- `gemini31_flash_live.py`：`gemini-3.1-flash-live-preview` Gemini Live WebSocket
-- `chat_completions_generic.py`：通用 OpenAI 兼容 Chat Completions
-- `yibu_audit.py`：逐调用追加式 token 审计
-- `summarize_usage.py`：JSON/CSV token 汇总归档
+- `qwen35_omni_flash.py`: `qwen3.5-omni-flash` HTTP Chat Completions
+- `qwen35_omni_plus.py`: `qwen3.5-omni-plus` HTTP Chat Completions
+- `qwen35_omni_plus_realtime.py`: `qwen3.5-omni-plus-realtime` WebSocket
+- `gemini31_flash_live.py`: `gemini-3.1-flash-live-preview` Gemini Live WebSocket
+- `chat_completions_generic.py`: generic OpenAI-compatible Chat Completions
+- `yibu_audit.py`: append-per-call token auditing
+- `summarize_usage.py`: JSON/CSV token usage summarization
 
-完整安装、调用、无代理设置和 token 统计说明见包内 `README.md`。
+See the `README.md` inside the package for full installation, invocation, no-proxy setup, and token statistics instructions.
 
-## 安全边界
+## Security Boundaries
 
-- 包内不含 API Key，运行时只读取环境变量 `YIBU_API_KEY`。
-- HTTP 显式设置 `trust_env=False`；WebSocket 显式设置 `proxy=None`。
-- 不包含开发机虚拟环境、缓存、真实调用台账、Key 后四位、内部来源路径或历史预测数据。
-- `.env.example` 中的凭据值为空。
+- The package contains no API key; at runtime it only reads the `YIBU_API_KEY` environment variable.
+- HTTP explicitly sets `trust_env=False`; WebSocket explicitly sets `proxy=None`.
+- Does not include the dev machine's virtual environment, caches, real call ledgers, key suffixes, internal source paths, or historical forecast data.
+- Credential values in `.env.example` are empty.
 
-## 验证状态
+## Verification Status
 
-2026-09-18 已对五个正式入口完成真实在线最小调用，均曾成功返回内容及 usage。历史瞬时失败和具体调用台账未收入分享包。包内另含无需 Key 的单元测试。
+As of 2026-09-18, minimal real online calls were completed for all five official entry points, each successfully returning content and usage. Historical transient failures and specific call ledgers are not included in the shared package. The package also includes key-free unit tests.
 
 ```bash
 python -m venv .venv

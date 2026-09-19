@@ -1,0 +1,56 @@
+{
+  "schema_version": "yibu_usage_summary_v1",
+  "generated_at_utc": "2026-09-19T13:17:15.799254+00:00",
+  "source": {
+    "path": "/Users/adip/Desktop/Sixth-Sense/omni/artifacts/yibu_api_calls.jsonl",
+    "bytes": 2100,
+    "sha256": "0a7816d02ce8c30cb2d9db6360e7b53bfddefaaf779b114e9095c2c3b3adbb33",
+    "unique_call_ids": 3,
+    "duplicate_rows_ignored": 0
+  },
+  "accounting_note": "Missing token values are unknown, not zero; totals only sum reported values.",
+  "totals": {
+    "calls": 3,
+    "ok": 3,
+    "failed": 0,
+    "usage_missing_calls": 0,
+    "input_tokens": 188,
+    "output_tokens": 81,
+    "total_tokens": 269,
+    "input_tokens_missing_calls": 0,
+    "output_tokens_missing_calls": 0,
+    "total_tokens_missing_calls": 0
+  },
+  "groups": [
+    {
+      "model": "gemini-3.1-flash-live-preview",
+      "key_suffix": "...pYF1",
+      "purpose": "example_gemini31_flash_live",
+      "calls": 1,
+      "ok": 1,
+      "failed": 0,
+      "usage_missing_calls": 0,
+      "input_tokens": 150,
+      "output_tokens": 27,
+      "total_tokens": 177,
+      "input_tokens_missing_calls": 0,
+      "output_tokens_missing_calls": 0,
+      "total_tokens_missing_calls": 0
+    },
+    {
+      "model": "qwen3.5-omni-flash",
+      "key_suffix": "...pYF1",
+      "purpose": "example_qwen35_omni_flash",
+      "calls": 2,
+      "ok": 2,
+      "failed": 0,
+      "usage_missing_calls": 0,
+      "input_tokens": 38,
+      "output_tokens": 54,
+      "total_tokens": 92,
+      "input_tokens_missing_calls": 0,
+      "output_tokens_missing_calls": 0,
+      "total_tokens_missing_calls": 0
+    }
+  ]
+}
