@@ -42,6 +42,7 @@ Reinspect the files before making changes; update this table when they change.
 | Source | `SOURCE = 0` (camera index) or a path to an image/video; constant at top of file, no CLI flags |
 | Tracking args | `stream=True`, `persist=True`, `conf=0.35` (provisional threshold, not a measured optimum) |
 | Output | Annotated OpenCV preview + terminal prints of pixel distances; `q` to quit; optional `RECORD_PATH` writer (off by default) |
+| Headless mode | `SHOW_PREVIEW = True` constant, or `show_preview=` kwarg on `main()`/`wait_to_reconnect()` (added 2026-09-20). `False` skips every `cv2.imshow`/`waitKey`/`destroyAllWindows` call so the loop runs on a host with no display / no Qt "xcb" platform plugin; the only way to stop it is then Ctrl-C, not `q`. Root `main.py` sets this from `--no-preview` or auto-detects a Linux host with no `DISPLAY`/`WAYLAND_DISPLAY` |
 | Cleanup | `finally:` releases the video writer and destroys windows, including on Ctrl-C and exceptions; closes generators and source loaders |
 | Structured evidence for consumers | **Implemented** in `scene_state.py`: frozen `Detection` / `SceneSnapshot`, latest-only `SceneState`, freshness checks, image-third regions, and text helper; loop publishes before annotation and resets on entry/disconnect/exit; explicit `reset_session(model, state)` resets persistent trackers too |
 | Tests | `Tests/test_scene_state.py`, `test_reconnect.py`, `test_quality.py`: offline coverage with fake boxes/clock, synthetic frames, concurrency, import guards, and mocked loop wiring; no checkpoint or camera |
@@ -146,8 +147,11 @@ cd computer-vision
 python track_distances.py
 ```
 
-The standalone CV entry has no `--source` / `--no-show` flags; edit its constants.
-Root `python main.py --source path/to/local/video.mp4` provides source selection.
+The standalone CV entry has no `--source` flag; edit its constants (or set
+`SHOW_PREVIEW = False` / pass `show_preview=False` for a headless host).
+Root `python main.py --source path/to/local/video.mp4` provides source selection,
+and `python main.py --no-preview` forces headless mode (auto-detected on a
+Linux host with no `DISPLAY`/`WAYLAND_DISPLAY`).
 Use conda base `/opt/anaconda3/bin/python` for the installed dependencies. Update this file
 and `README.md` when that changes.
 

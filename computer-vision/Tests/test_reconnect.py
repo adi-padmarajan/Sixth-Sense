@@ -42,7 +42,7 @@ def test_live_loss_resets_and_reopens(camera, monkeypatch, raises, caplog):
 
     camera.model.track.side_effect = [first(), iter([camera.result])]
 
-    def reconnect(delay, attempt, status):
+    def reconnect(delay, attempt, status, **_kwargs):
         assert state.read(0.5) is None
         assert state.session_generation == observed[0] + 1
         camera.tracker.reset.assert_called_once()
@@ -87,7 +87,7 @@ def test_backoff_doubles_caps_and_keeps_retrying(camera, monkeypatch):
     camera.model.track.side_effect = OSError('offline')
     delays = []
 
-    def retry(delay, attempt, _):
+    def retry(delay, attempt, _, **_kwargs):
         delays.append(delay)
         return attempt < 7
 
@@ -101,6 +101,32 @@ def test_placeholder_pumps_gui_through_delay(camera, monkeypatch):
     clock = iter([0, 0.1, 0.3, 0.5])
     assert tracking.wait_to_reconnect(.5, 2, lambda: 'off', clock=lambda: next(clock))
     assert camera.show.call_count == 3
+
+
+def test_headless_mode_never_touches_gui(camera, monkeypatch):
+    """show_preview=False must not call imshow/waitKey/destroyAllWindows,
+    since those crash without a display (Qt "xcb" platform plugin)."""
+    camera.model.track.return_value = iter([camera.result])
+    waitkey = Mock(return_value=-1)
+    destroy = Mock()
+    reconnect = Mock(return_value=False)  # quit after the (mocked) one reconnect wait
+    monkeypatch.setattr(tracking.cv2, 'waitKey', waitkey)
+    monkeypatch.setattr(tracking.cv2, 'destroyAllWindows', destroy)
+    monkeypatch.setattr(tracking, 'wait_to_reconnect', reconnect)
+    tracking.main(show_preview=False)
+    camera.show.assert_not_called()
+    waitkey.assert_not_called()
+    destroy.assert_not_called()
+    assert reconnect.call_args.kwargs.get('show_preview') is False
+
+
+def test_headless_reconnect_waits_without_gui(monkeypatch):
+    clock = iter([0, 0.2, 0.6])
+    show = Mock()
+    monkeypatch.setattr(tracking.cv2, 'imshow', show)
+    monkeypatch.setattr(tracking.time, 'sleep', Mock())
+    assert tracking.wait_to_reconnect(.5, 1, lambda: 'off', clock=lambda: next(clock), show_preview=False)
+    show.assert_not_called()
 
 
 def test_reset_hook_clears_scene_and_tracker_together(camera):
