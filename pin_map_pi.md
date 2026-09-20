@@ -15,3 +15,14 @@ trigger
 
 trigger groups are even and odd
 read order should loop through 1-8 by alternating trigger groups and moving to next pin
+
+
+pin:  sensor
+8       8
+10      1
+12      5
+16      7
+18      3
+22      6
+24      2
+26      4

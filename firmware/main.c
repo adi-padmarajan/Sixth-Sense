@@ -43,7 +43,7 @@ int main(void) {
         for (int tick = 0; tick < 20; tick++) {
             double elapsed_s = now_s() - start_s;
             for (int i = 0; i < CHANNEL_COUNT; i++) {
-                bool motor_on = haptic_pattern_is_on(have_reading[i], filtered_mm[i], elapsed_s);
+                bool motor_on = true;//haptic_pattern_is_on(have_reading[i], filtered_mm[i], elapsed_s);
                 motor_set(CHANNELS[i].motor_pin, motor_on);
             }
             usleep(10000);  // 10ms -- ~20 ticks covers the old 200ms window
