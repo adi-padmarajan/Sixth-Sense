@@ -88,6 +88,33 @@ static bool ensure_ready(void) {
     return true;
 }
 
+// Tracks which pins already have an active edge-detection registration.
+// Confirmed by test (see test_registration.c): a single registration
+// keeps delivering pulses for every future edge on that pin, so each pin
+// only needs to be registered once, ever -- re-registering on every
+// reading exhausts the resource manager's registration table over time.
+static bool pin_event_registered[GPIO_COUNT];
+
+// Configures a pin as an input and registers it for edge notifications,
+// but only the first time it's called for a given pin. Later calls for
+// the same pin are no-ops. Returns false if registration fails.
+static bool ensure_pin_registered(int pin, unsigned event_id) {
+    if (pin < 0 || pin >= GPIO_COUNT) {
+        return false;
+    }
+    if (pin_event_registered[pin]) {
+        return true;
+    }
+
+    rpi_gpio_setup_pull(pin, GPIO_IN, GPIO_PUD_OFF);
+    if (rpi_gpio_add_event_detect(pin, coid, GPIO_RISING | GPIO_FALLING, event_id)) {
+        return false;
+    }
+
+    pin_event_registered[pin] = true;
+    return true;
+}
+
 // Waits for the echo pin's high pulse and returns its duration. Returns
 // false if no complete pulse is observed within timeout_s.
 bool sensor_wait_for_echo(int pin, double timeout_s, double *out_duration_s) {
@@ -95,11 +122,7 @@ bool sensor_wait_for_echo(int pin, double timeout_s, double *out_duration_s) {
         return false;
     }
 
-    // Pull-down disabled so the sensor's own drive determines the level.
-    rpi_gpio_setup_pull(pin, GPIO_IN, GPIO_PUD_OFF);
-
-    // Register for both rising and falling edge notifications on this pin.
-    if (rpi_gpio_add_event_detect(pin, coid, GPIO_RISING | GPIO_FALLING, EVENT_ECHO)) {
+    if (!ensure_pin_registered(pin, EVENT_ECHO)) {
         return false;
     }
 
@@ -166,8 +189,7 @@ bool sensor_wait_for_echoes(const int *pins, int count, double timeout_s, double
     for (int i = 0; i < count; i++) {
         have_high[i] = have_low[i] = false;
         high_ts[i] = low_ts[i] = 0;
-        rpi_gpio_setup_pull(pins[i], GPIO_IN, GPIO_PUD_OFF);
-        if (rpi_gpio_add_event_detect(pins[i], coid, GPIO_RISING | GPIO_FALLING, (unsigned)i)) {
+        if (!ensure_pin_registered(pins[i], (unsigned)i)) {
             pending--;  // this pin can never complete; stop waiting on it
         }
     }
