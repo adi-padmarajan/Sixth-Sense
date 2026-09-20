@@ -737,6 +737,61 @@ def test_speech_callback_after_synthesis_and_pcm_volume(monkeypatch):
         tts.shutdown()
 
 
+def test_output_stream_falls_back_and_resamples_when_rate_rejected(monkeypatch):
+    """A raw ALSA hw: device (no dmix/plug layer) can raise on OutputStream()
+    for a rate it doesn't natively support instead of resampling for us --
+    observed on a USB DAC exposed only as hw:4,0. Verify the fallback finds
+    the device's own rate and Piper's audio is resampled to match, rather
+    than silently failing or playing at the wrong speed/pitch."""
+    from unittest.mock import Mock
+    from types import SimpleNamespace
+    import numpy as np
+    from speech.tts import PiperTTS, QueuedTTS
+
+    tts = PiperTTS.__new__(PiperTTS)
+    QueuedTTS.__init__(tts)
+    tts._stream = None
+    tts.write_block_samples = 4096
+    tts.samplerate = 22050
+    tts.device = 2
+    attempted_rates = []
+    written = []
+
+    class FakeSD:
+        default = SimpleNamespace(device=[0, 2])
+
+        @staticmethod
+        def OutputStream(samplerate, channels, dtype, device):
+            attempted_rates.append(samplerate)
+            if samplerate == tts.samplerate:
+                raise RuntimeError("paInvalidSampleRate")
+            stream = Mock()
+            stream.write.side_effect = lambda block: written.append(block)
+            return stream
+
+        @staticmethod
+        def query_devices(index):
+            return {"default_samplerate": 44100.0}
+
+    tts._sd = FakeSD
+
+    def synthesize(text):
+        yield SimpleNamespace(audio_int16_array=np.linspace(-1000, 1000, 2205, dtype=np.int16))
+
+    tts.voice = SimpleNamespace(synthesize=synthesize)
+    tts.speak("hello")
+    tts.start()
+    try:
+        assert tts.wait_idle(2)
+    finally:
+        tts.shutdown()
+
+    assert attempted_rates == [22050, 44100]
+    assert tts.output_samplerate == 44100
+    total_frames = sum(len(block) for block in written)
+    assert total_frames == 4410  # 2205 samples @22050Hz resampled to 44100Hz
+
+
 def test_cancel_after_dequeue_cannot_restart_item():
     tts = FakeTTS()
     original_get = tts._queue.get

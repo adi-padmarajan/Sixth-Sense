@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Callable, Dict, List, Optional
 
+import numpy as np
+
 log = logging.getLogger(__name__)
 
 
@@ -400,8 +402,29 @@ def resolve_output_device(explicit_device: Optional[int]) -> Optional[int]:
     return None
 
 
+def _resample_int16(samples: np.ndarray, orig_rate: int, target_rate: int) -> np.ndarray:
+    """Linear-interpolation resample of mono int16 PCM.
+
+    Only used as a fallback when the output device rejected Piper's native
+    rate outright (see `PiperTTS._open_stream`) -- good enough for a spoken
+    announcement, not a claim of hi-fi audio quality.
+    """
+    if orig_rate == target_rate or len(samples) == 0:
+        return samples
+    duration = len(samples) / orig_rate
+    n_target = max(1, int(round(duration * target_rate)))
+    x_old = np.linspace(0.0, duration, num=len(samples), endpoint=False)
+    x_new = np.linspace(0.0, duration, num=n_target, endpoint=False)
+    resampled = np.interp(x_new, x_old, samples.astype(np.float64))
+    return np.clip(resampled, -32768, 32767).astype(np.int16)
+
+
 class PiperTTS(QueuedTTS):
     """Piper (ONNX) synthesis played through sounddevice."""
+
+    # Set only when `_open_stream` falls back from the model's native rate
+    # (see there); None on the class means "no resampling needed".
+    output_samplerate: Optional[int] = None
 
     def __init__(
         self,
@@ -441,11 +464,37 @@ class PiperTTS(QueuedTTS):
         self.write_block_samples = write_block_samples
 
     def _open_stream(self):
-        if self._stream is None:
+        if self._stream is not None:
+            return self._stream
+        rate = self.output_samplerate or self.samplerate
+        try:
             self._stream = self._sd.OutputStream(
-                samplerate=self.samplerate, channels=1, dtype="int16", device=self.device
+                samplerate=rate, channels=1, dtype="int16", device=self.device
+            )
+        except Exception as exc:  # noqa: BLE001
+            # A raw ALSA hw: device (no dmix/plug layer in front of it) can
+            # reject any rate it doesn't natively support instead of
+            # resampling for us -- verified on a USB DAC exposed only as
+            # "hw:4,0" (see speech/README.md). Fall back to whatever rate
+            # the device itself reports and resample Piper's audio to match.
+            fallback = self._query_default_samplerate()
+            if fallback is None or fallback == rate:
+                raise
+            log.warning("tts_device_rate_unsupported requested=%d falling_back=%d error=%s",
+                        rate, fallback, type(exc).__name__)
+            self.output_samplerate = fallback
+            self._stream = self._sd.OutputStream(
+                samplerate=fallback, channels=1, dtype="int16", device=self.device
             )
         return self._stream
+
+    def _query_default_samplerate(self) -> Optional[int]:
+        try:
+            index = self.device if self.device is not None else self._sd.default.device[1]
+            rate = self._sd.query_devices(index).get("default_samplerate")
+            return int(round(rate)) if rate else None
+        except Exception:  # noqa: BLE001 - diagnostic only
+            return None
 
     def _close_stream(self):
         stream, self._stream = self._stream, None
@@ -472,6 +521,8 @@ class PiperTTS(QueuedTTS):
             # bytes -- pull the int16 samples off it before writing.
             for audio_chunk in self.voice.synthesize(text):
                 samples = audio_chunk.audio_int16_array
+                if self.output_samplerate is not None and self.output_samplerate != self.samplerate:
+                    samples = _resample_int16(samples, self.samplerate, self.output_samplerate)
                 for start in range(0, len(samples), self.write_block_samples):
                     if should_stop() or not self._playback_started():
                         stopped_early = True

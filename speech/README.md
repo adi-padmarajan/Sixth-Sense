@@ -97,7 +97,30 @@ default. To fix a silent Pi:
    `raspi-config` on Raspberry Pi OS) checks the channel isn't muted or at 0.
 3. Once you know the right index from the startup log, set it explicitly in
    `configs/speech.json`: `"tts_device": <index>`. An explicit `tts_device`
-   always wins over the "pulse"/default auto-selection.
+   always wins over the "pulse"/default auto-selection. Treat this as a
+   per-machine value, not something to commit -- device indices are ALSA's
+   current enumeration order, which is specific to that host (and can shift
+   across a reboot as USB devices re-enumerate).
+
+### "paInvalidSampleRate" once a real output device is selected
+
+A raw ALSA hardware device (PortAudio names these like `hw:4,0`, with no
+`dmix`/`plug` layer in front) only accepts the exact sample rate(s) it
+natively supports, and raises `paInvalidSampleRate` for anything else --
+unlike CoreAudio (macOS) or a PulseAudio/PipeWire "pulse" device, both of
+which resample transparently. Piper's voice models have a fixed sample rate
+(commonly 22050 Hz) that a cheap USB DAC often doesn't support directly.
+
+`PiperTTS` handles this automatically: if opening the output stream at the
+model's rate fails, it queries the device's own reported default rate,
+reopens at that rate, and resamples Piper's audio (simple linear
+interpolation -- adequate for spoken announcements, not a hi-fi claim) to
+match for every utterance after that. This is a fallback, not the normal
+path, and only engages if the first attempt actually raises; a startup log
+line (`tts_device_rate_unsupported requested=... falling_back=...`) says
+when it did. If you still get no audio after that, the fallback query
+itself may be failing (unlikely) -- confirm with `speaker-test -D hw:<card>,<device> -c1 -r <rate>`
+in a shell to find a rate that device actually accepts.
 
 ## A note on QNX
 
