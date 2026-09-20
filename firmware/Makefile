@@ -50,7 +50,7 @@ CCFLAGS_all += -Wall -fmessage-length=0 $(CCFLAGS_$(BUILD_PROFILE))
 # rpi_gpio.c itself needs (built by RPI_GPIO_DIR's own Makefile).
 INCLUDES += -I. -I$(RPI_GPIO_DIR)/public
 
-SRCS = main.c sensor.c sensor_driver_qnx.c channels.c proximity_band.c proximity_filter.c proximity_state.c
+SRCS = main.c sensor.c sensor_driver_qnx.c channels.c proximity_band.c proximity_filter.c proximity_state.c haptic_pattern.c motor_driver_qnx.c
 OBJS = $(addprefix $(OUTPUT_DIR)/,$(SRCS:.c=.o))
 DEPS = -Wp,-MMD,$(@:%.o=%.d),-MT,$@
 
