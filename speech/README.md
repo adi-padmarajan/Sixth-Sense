@@ -73,6 +73,32 @@ or registers a `.on()` handler. Handlers receive a frozen `Command` with
   checked against the model's vocabulary at startup; a bare `[unk]` result
   (speech heard, nothing matched) is logged as `not_understood`.
 
+## Troubleshooting: TTS reports "ready" but nothing is audible
+
+`speech.health["tts"] == "ready"` only means Piper loaded and the output
+stream opened without raising -- a driver acknowledgement, not proof of
+physical sound (CLAUDE.md §12). On a headless Raspberry Pi (or any Linux
+host with plain ALSA and no desktop session), `sounddevice`/PortAudio's
+"default" output device is whatever `/etc/asound.conf` or `~/.asoundrc`
+hardcodes -- commonly HDMI on a Pi -- and it silently opening does not mean
+that's the jack/speaker you're listening to.
+
+When `configs/speech.json` has `"tts_device": null` (the default), startup
+logs `tts: no PulseAudio/PipeWire "pulse" ALSA device found; ...` followed
+by every candidate output device the log found, each with the sounddevice
+index needed for `tts_device`, and marks which one PortAudio picked by
+default. To fix a silent Pi:
+
+1. Run `python main.py --cloud` (or any entry point that calls
+   `speech.configure(...)`) and read that device list in the startup log.
+2. Confirm on the OS side which device is actually wired to your speaker:
+   `aplay -l` lists ALSA cards/devices, `speaker-test -D hw:<card>,<device> -c1`
+   plays a test tone on one of them directly, and `alsamixer` (or
+   `raspi-config` on Raspberry Pi OS) checks the channel isn't muted or at 0.
+3. Once you know the right index from the startup log, set it explicitly in
+   `configs/speech.json`: `"tts_device": <index>`. An explicit `tts_device`
+   always wins over the "pulse"/default auto-selection.
+
 ## A note on QNX
 
 This module (`piper-tts`, `vosk`, `sounddevice`) depends on native

@@ -384,8 +384,19 @@ def resolve_output_device(explicit_device: Optional[int]) -> Optional[int]:
             log.info("tts: routing output through ALSA device %r (index %d) to follow the desktop's "
                      "default audio output", dev["name"], index)
             return index
+    try:
+        default_out = sd.default.device[1]
+    except Exception:  # noqa: BLE001 - diagnostic only, never block startup on this
+        default_out = None
+    outputs = [(i, d.get("name"), d.get("max_output_channels", 0))
+               for i, d in enumerate(devices) if d.get("max_output_channels", 0) > 0]
     log.info("tts: no PulseAudio/PipeWire \"pulse\" ALSA device found; using PortAudio's own default "
-             "output device (set tts_device in configs/speech.json to pin a specific device instead)")
+             "output device (index %r). A driver acknowledgement here does not prove physical sound -- "
+             "confirm audibly. If silent, set tts_device in configs/speech.json to one of the output "
+             "device indices below, or fix which one is the OS/ALSA default:", default_out)
+    for index, name, channels in outputs:
+        log.info("tts:   device %d: %r (%d output channel(s))%s",
+                  index, name, channels, " <- current PortAudio default" if index == default_out else "")
     return None
 
 
