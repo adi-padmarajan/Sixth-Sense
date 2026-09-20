@@ -32,7 +32,7 @@ directional touch, with voice access to visual context.
 
 - [What it does](#what-it-does)
 - [Why](#why)
-- [Status at a glance](#status-at-a-glance)
+- [System architecture](#system-architecture)
 - [How it works](#how-it-works)
   - [Two devices, three paths](#two-devices-three-paths)
   - [Direction mapping](#direction-mapping)
@@ -76,28 +76,7 @@ and validation. What we built this weekend is the honest indoor prototype: a
 stationary wearer, soft objects, a dry room, and a device that tells you where
 they are.
 
-## Status at a glance
-
-We'd rather you know exactly what works than be impressed by a checklist.
-
-| Piece | Status |
-| --- | :---: |
-| Camera → YOLO tracking → `SceneState` evidence, annotated preview, camera-loss recovery with backoff | ✅ Working |
-| Offline voice: Vosk STT (12-phrase grammar) + Piper TTS with priority / interrupt / mute / volume | ✅ Working |
-| *"What's in front of me"* / *"describe"* → one frame (+ optional recorded question) → cloud assistant → spoken answer | ✅ Working — cloud is opt-in; fake client for offline demos |
-| Orchestrator (`main.py`): every grammar phrase handled, status report, bounded shutdown, latency logs | ✅ Working |
-| **224 offline tests** — no camera, mic, sensors, network, GPU, or API key | ✅ Passing |
-| C firmware: 8-channel ultrasonic read, grouped triggering, median filter, hysteresis, proximity bands | ✅ Implemented, running on the QNX Pi |
-| C firmware: distance → pulse-rate haptic pattern → motor GPIO output | ✅ Implemented — `rear` motor pin assigned; other seven pins **not yet assigned** |
-| Firmware build system (`make` with the QNX SDP) + standalone motor bring-up tool | ✅ In the repo |
-| Physical vibration confirmed by touch on all eight motors | ❌ Not yet verified |
-| Voice control of haptics (pause / sensitivity) | ❌ Recognized, but replies *"Haptic controls are not available yet"* — no host ↔ controller link |
-| Measured latency, usable range, and beam coverage on assembled hardware | ❌ Not measured |
-| Python ultrasonic reference (`sensor_python/`) | 🟡 Superseded by the C firmware; kept for reference |
-
-## How it works
-
-### System architecture overview
+## System architecture
 
 ![SpideyIRL system architecture: independent proximity and haptic processing alongside camera tracking, voice input, an opt-in multimodal assistant, and speech output.](docs/spideyirl-architecture.png)
 
@@ -105,7 +84,9 @@ This diagram illustrates the intended architecture. The current build uses
 ultrasonic sensors rather than the depicted ToF ring; Vosk handles the configured
 command grammar, and the cross-device haptic alert connection shown here is not
 implemented. See [System Architecture](SYSTEM_ARCHITECTURE.md) for implementation
-details and the status table above for verification limits.
+details.
+
+## How it works
 
 ### Two devices, three paths
 
