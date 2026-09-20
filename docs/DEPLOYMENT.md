@@ -176,7 +176,7 @@ on the Pi itself or in CI before deploying.
 
 Both devices run independently and are demonstrated side by side — there
 is no software integration step between them. Follow
-[README.md "Demonstration and presentation"](../README.md#demonstration-and-presentation)
+[README.md "The 90-second demo"](../README.md#the-90-second-demo)
 for the rehearsed sequence: directional vibration first (Spidey Sense Pi),
 then a scene question and a voice setting change (Eyes & Voice Pi), then
 the network-down and camera-unavailable degraded states.

@@ -11,6 +11,10 @@ physical distance sensors.
 
 Controls (preview window must have focus):
   q  quit
+
+Set SHOW_PREVIEW = False (or pass show_preview=False to main()) on a host
+with no display / no Qt "xcb" platform plugin; the loop then runs without
+opening any OpenCV window, and Ctrl-C is the only way to stop it.
 """
 
 import itertools
@@ -33,6 +37,7 @@ ANCHOR_CLASS = "person"  # measure from this class to others when present
 MAX_OBJECTS = 8       # cap on tracked objects drawn per frame to limit clutter
 RECORD_PATH = None    # e.g. "distance_output.mp4" to save the annotated output (opt-in)
 MIRROR_PREVIEW: bool = False  # display only; never changes published evidence
+SHOW_PREVIEW: bool = True  # set False (or pass show_preview=False) on a host with no display/Qt platform plugin
 RECONNECT_INITIAL_DELAY_S = 0.5  # provisional bench timings
 RECONNECT_MAX_DELAY_S = 5.0
 UNAVAILABLE_FRAME_SHAPE = (480, 640, 3)
@@ -129,9 +134,19 @@ def plot_validated(result, snapshot):
     return frame
 
 
-def wait_to_reconnect(delay, attempt, preview_status, *, clock=time.monotonic):
-    """Pump the GUI throughout backoff; no frozen image is presented as live."""
+def wait_to_reconnect(delay, attempt, preview_status, *, clock=time.monotonic, show_preview=True):
+    """Pump the GUI throughout backoff; no frozen image is presented as live.
+
+    Headless (show_preview=False): no window exists to read a quit key from,
+    so this just waits out the backoff; Ctrl-C is still the way to stop.
+    """
     deadline = clock() + delay
+    if not show_preview:
+        while True:
+            now = clock()
+            if now >= deadline:
+                return True
+            time.sleep(min(PREVIEW_POLL_MS / 1000, deadline - now))
     while True:
         frame = np.zeros(UNAVAILABLE_FRAME_SHAPE, dtype=np.uint8)
         overlay_status(frame, "unavailable", preview_status)
@@ -147,9 +162,14 @@ def wait_to_reconnect(delay, attempt, preview_status, *, clock=time.monotonic):
 
 
 def main(state: SceneState | None = None, *,
-         preview_status: Callable[[], str] | None = None) -> None:
+         preview_status: Callable[[], str] | None = None,
+         show_preview: bool | None = None) -> None:
     if state is None:
         state = SceneState()
+    if show_preview is None:
+        show_preview = SHOW_PREVIEW
+    if not show_preview:
+        log.info("track_distances: headless mode, no preview window")
     state.reset()
     if not MODEL_PATH.is_file():
         raise FileNotFoundError(f"Model checkpoint not found: {MODEL_PATH}")
@@ -185,7 +205,7 @@ def main(state: SceneState | None = None, *,
                 close_source(model, results)
                 results = None
                 attempt += 1
-                if not wait_to_reconnect(delay, attempt, preview_status):
+                if not wait_to_reconnect(delay, attempt, preview_status, show_preview=show_preview):
                     break
                 delay = min(delay * 2, RECONNECT_MAX_DELAY_S)
                 continue
@@ -211,18 +231,20 @@ def main(state: SceneState | None = None, *,
             if video_writer is not None:
                 video_writer.write(frame)
 
-            display = cv2.flip(frame, 1) if MIRROR_PREVIEW else frame.copy()
-            camera_status = source_mode if snapshot.quality == "ok" else f"low quality ({snapshot.quality})"
-            overlay_status(display, camera_status, preview_status)
-            cv2.imshow("YOLO Distances", display)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+            if show_preview:
+                display = cv2.flip(frame, 1) if MIRROR_PREVIEW else frame.copy()
+                camera_status = source_mode if snapshot.quality == "ok" else f"low quality ({snapshot.quality})"
+                overlay_status(display, camera_status, preview_status)
+                cv2.imshow("YOLO Distances", display)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
     finally:
         reset_session(model, state)
         close_source(model, results)
         if video_writer is not None:
             video_writer.release()
-        cv2.destroyAllWindows()
+        if show_preview:
+            cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

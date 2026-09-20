@@ -355,6 +355,40 @@ class QueuedTTS:
                 log.warning("tts_callback_failed reason=on_fault_failed")
 
 
+def resolve_output_device(explicit_device: Optional[int]) -> Optional[int]:
+    """Pick the PortAudio output device index sounddevice should open.
+
+    An explicit `configs/speech.json` `tts_device` always wins -- this is
+    only for the `null` (unset) case. PortAudio's own "default" device on
+    Linux is whatever ALSA's `default` PCM is hardcoded to in
+    /etc/asound.conf or ~/.asoundrc (often the HDMI output on a Raspberry
+    Pi with a desktop session), and it does NOT track the output a person
+    picks in the desktop's sound settings. PulseAudio/PipeWire (what that
+    GUI picker actually controls) instead registers a separate ALSA device
+    literally named "pulse" that forwards to whichever sink is currently
+    the desktop default -- so prefer that device by name when present.
+    Falls back to PortAudio's own default (previous behavior, unchanged)
+    when no such device is found, e.g. a headless Pi with plain ALSA.
+    """
+    if explicit_device is not None:
+        return explicit_device
+    import sounddevice as sd
+
+    try:
+        devices = sd.query_devices()
+    except Exception:  # noqa: BLE001 - fall through to PortAudio's own default
+        log.warning("tts_device_resolve_failed reason=query_devices_failed")
+        return None
+    for index, dev in enumerate(devices):
+        if dev.get("name", "").strip().lower() == "pulse" and dev.get("max_output_channels", 0) > 0:
+            log.info("tts: routing output through ALSA device %r (index %d) to follow the desktop's "
+                     "default audio output", dev["name"], index)
+            return index
+    log.info("tts: no PulseAudio/PipeWire \"pulse\" ALSA device found; using PortAudio's own default "
+             "output device (set tts_device in configs/speech.json to pin a specific device instead)")
+    return None
+
+
 class PiperTTS(QueuedTTS):
     """Piper (ONNX) synthesis played through sounddevice."""
 
@@ -389,7 +423,7 @@ class PiperTTS(QueuedTTS):
         # Piper voices carry their own sample rate in the config; fall back
         # to a caller-supplied value only if that isn't available.
         self.samplerate = getattr(getattr(self.voice, "config", None), "sample_rate", None) or samplerate or 22050
-        self.device = device
+        self.device = resolve_output_device(device)
         # Audio is written in blocks this size so an interrupt lands within
         # ~write_block_samples / samplerate seconds instead of waiting for
         # the whole sentence Piper hands back.

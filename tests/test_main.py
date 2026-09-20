@@ -304,8 +304,9 @@ def test_cli_startup_replay_stt_fault_and_cleanup(monkeypatch, caplog, fake, clo
         stt.fail("test_mic_fault")
         return dict(service.health)
 
-    def preview(state, *, preview_status):
+    def preview(state, *, preview_status, show_preview=True):
         assert preview_status() == cloud_state
+        assert show_preview is True  # this test runs where a display is assumed available
         observed["state"] = state
         assert threading.current_thread() is threading.main_thread()
         assert service.health["stt"] == "fault"

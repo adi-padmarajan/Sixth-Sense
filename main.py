@@ -25,6 +25,10 @@ from speech import Command, Priority, SpeechConfig, SpeechService, speech
 
 
 log = logging.getLogger("sixth_sense.orchestrator")
+# Separate from `log`: every "sixth_sense.orchestrator" record is parsed as
+# JSON by consumers (and by this repo's own tests' caplog helper), so
+# human-readable text never goes through that logger.
+text_log = logging.getLogger("sixth_sense.startup")
 
 
 def log_event(session_id, event, *, level=logging.INFO, **fields):
@@ -229,10 +233,26 @@ class Orchestrator:
             worker.join(timeout=2)
 
 
+def headless_reason(forced: bool) -> str | None:
+    """None means a preview window should work; otherwise, why it won't.
+
+    Only Linux/X11 hosts are auto-detected (no DISPLAY/WAYLAND_DISPLAY means
+    no Qt "xcb" platform plugin target, which is what crashes cv2.imshow).
+    macOS/Windows GUIs aren't probed here; use --no-preview there if needed.
+    """
+    if forced:
+        return "requested via --no-preview"
+    if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return "no DISPLAY or WAYLAND_DISPLAY set"
+    return None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cloud", action="store_true", help="Enable cloud requests (requires YIBU_API_KEY)")
     parser.add_argument("--source", type=Path, help="Replay an image/video instead of camera 0")
+    parser.add_argument("--no-preview", action="store_true",
+                         help="Run the camera loop with no OpenCV preview window (for headless/no-display hosts)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     session_id = uuid.uuid4().hex
@@ -267,17 +287,38 @@ def main(argv=None):
         startup("scene_state")
         orch = Orchestrator(speech, speech_cfg, cfg, state, client, session_id=session_id)
         startup("handlers")
-        speech.speak(f"system ready. cloud {cloud_state}.", Priority.NORMAL)
-        startup("ready", cloud_state=cloud_state)
+
         import track_distances
 
         if args.source is not None:
             if not args.source.is_file():
                 raise FileNotFoundError("Replay source must be a prepared local file")
             track_distances.SOURCE = str(args.source)
-        startup("preview", cloud_state=cloud_state,
-                source_mode="live" if isinstance(track_distances.SOURCE, int) else "replay")
-        track_distances.main(state, preview_status=lambda: orch.cloud_state)
+        source_mode = "live" if isinstance(track_distances.SOURCE, int) else "replay"
+        no_preview_reason = headless_reason(args.no_preview)
+        show_preview = no_preview_reason is None
+        preview_desc = "shown" if show_preview else f"headless ({no_preview_reason})"
+
+        # Human-readable one-line recap of startup, distinct from the JSON
+        # event lines above/below; a warning here never means an empty scene.
+        summary = (
+            f"Startup complete: cloud={cloud_state}, "
+            f"speech(tts={health.get('tts')}, stt={health.get('stt')}), "
+            f"camera source={source_mode}, preview={preview_desc}"
+        )
+        if enabled and not fake and not os.environ.get("YIBU_API_KEY"):
+            summary += ", warning=cloud credentials not configured"
+        text_log.info(summary)
+
+        spoken = f"system ready. cloud {cloud_state}."
+        if not show_preview:
+            spoken += " no preview window (running headless)."
+        speech.speak(spoken, Priority.NORMAL)
+        startup("ready", cloud_state=cloud_state)
+
+        startup("preview", cloud_state=cloud_state, source_mode=source_mode,
+                preview="shown" if show_preview else "headless", preview_reason=no_preview_reason)
+        track_distances.main(state, preview_status=lambda: orch.cloud_state, show_preview=show_preview)
         return 0
     except KeyboardInterrupt:
         return 0
