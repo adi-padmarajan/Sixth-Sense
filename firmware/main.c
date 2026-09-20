@@ -24,6 +24,11 @@ int main(void) {
         channel_reading_t readings[CHANNEL_COUNT];
         read_all_channel_distances_mm(readings);
 
+        // TEMPORARY TEST -- force a known reading, bypassing the real sensor.
+        // Remove once you've confirmed the rest of the pipeline works.
+        readings[4].valid = true;
+        readings[4].distance_mm = 300;  // pretend "rear" is reading 300mm
+
         int filtered_mm[CHANNEL_COUNT];
         bool have_reading[CHANNEL_COUNT];
         for (int i = 0; i < CHANNEL_COUNT; i++) {
