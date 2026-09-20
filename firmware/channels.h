@@ -13,6 +13,7 @@ typedef struct {
   sensor_group_t group;
   int trigger_pin;
   int echo_pin;
+  int motor_pin;
 } channel_config_t;
 
 extern const channel_config_t CHANNELS[CHANNEL_COUNT];
