@@ -103,6 +103,73 @@ the actual QNX Pi:
    or implausible, it's more likely a wiring/sensor-health issue than this
    one.
 
+## Motor GPIO bring-up test
+
+`motor_gpio_test.c` is a standalone tool (not part of the Makefile build,
+same pattern as `test_registration.c`) that holds one or more GPIO pins
+HIGH at once for a fixed duration, bypassing sensors, valid-reading
+gating, and the haptic pattern entirely. Use it to isolate a non-firing
+motor into "software" vs. "hardware" before digging further into
+`main.c`/`haptic_pattern.c` -- and to test several motors simultaneously
+(e.g. ones you've wired to a shared ground) without needing them assigned
+in `channels.c` first:
+
+```bash
+cd firmware
+qcc -Vgcc_ntoaarch64le -I. -Ithird_party/rpi_gpio/public \
+    motor_gpio_test.c -Lthird_party/rpi_gpio/build/aarch64le-debug \
+    -lrpi_gpio -lpthread -o build/motor_gpio_test
+# or, self-hosted with clang, same flags:
+# clang -I. -Ithird_party/rpi_gpio/public motor_gpio_test.c \
+#     -Lthird_party/rpi_gpio/build/aarch64le-debug -lrpi_gpio -lpthread \
+#     -o build/motor_gpio_test
+
+./build/motor_gpio_test 5 14           # BCM 14 (rear) only, hold HIGH 5s
+./build/motor_gpio_test 5 14 4 17 27   # four pins together, hold HIGH 5s
+```
+
+First argument is always the hold duration in seconds; every argument
+after it is a BCM pin number to drive HIGH simultaneously. Each pin still
+gets its own separate `rpi_gpio_output` resource-manager call under the
+hood, so "simultaneous" here means back-to-back in the same tight loop,
+not a single atomic hardware write -- fine for a by-touch/multimeter
+check, not for measuring inter-channel timing.
+
+Requires `third_party/rpi_gpio`'s static lib already built (running `make`
+once in `firmware/` first produces
+`third_party/rpi_gpio/build/aarch64le-debug/librpi_gpio.a`).
+
+Reading the result (per pin, since a shared ground can make one working
+motor's vibration hard to attribute by touch alone when several are
+tested together -- check each with a multimeter individually if results
+seem ambiguous):
+
+- **Motor buzzes** → the GPIO→driver→motor hardware path works for that
+  channel. The fault is upstream in software: check whether `main.c` is
+  actually reaching that channel's `motor_set()` call with `true` (e.g.
+  the sensor reading is valid and within `haptic_pattern`'s range — see
+  the "Not implemented yet" section above for which pins are even
+  assigned).
+- **Motor stays silent** → it's downstream of that pin. Most likely: no
+  transistor/MOSFET driver stage between the GPIO and the motor. A GPIO
+  pin sources only a few mA; most vibration motors need tens to hundreds
+  of mA, and driving one directly off a GPIO typically does nothing (or
+  risks the pin). Confirm with a multimeter across the motor leads while
+  the pin is held high, not just by touch — that tells you whether any
+  voltage/current is arriving at all before you go looking for a driver
+  IC or transistor problem.
+- **Some fire, some don't, when tested together** → points at a per-pin
+  hardware difference (driver stage present on some channels but not
+  others, a bad connection on specific motors) rather than a shared
+  software or power-supply problem, since they all received the same
+  command at the same time.
+- **`rpi_gpio_setup`/`rpi_gpio_output` itself returns non-zero** → that's
+  a resource-manager/permission problem (see the GPIO privilege note under
+  "Deploy and run" above), separate from either of the above.
+
+Delete this file once the real motor path is confirmed working end to end
+— it's a bring-up aid, not permanent tooling.
+
 ## Build
 
 Requires the QNX Software Development Platform: `qcc`/`q++` on `PATH` with
