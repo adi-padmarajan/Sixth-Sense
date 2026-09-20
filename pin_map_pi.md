@@ -11,7 +11,8 @@ gpio board number
 
 
 trigger
-23   rail   all
+23   rail   even
+27   rail   odd
 
 
 trigger groups are even and odd
