@@ -8,11 +8,6 @@
 #include <pthread.h>
 #include <sched.h>
 
-// Define possible event type as an echo.
-enum sample_event_t {
-    EVENT_ECHO,
-};
-
 // QNX channel/connection used to receive GPIO edge notifications.
 // Created once on first use and reused for all subsequent calls.
 static int chid = -1;
@@ -98,7 +93,15 @@ static bool pin_event_registered[GPIO_COUNT];
 // Configures a pin as an input and registers it for edge notifications,
 // but only the first time it's called for a given pin. Later calls for
 // the same pin are no-ops. Returns false if registration fails.
-static bool ensure_pin_registered(int pin, unsigned event_id) {
+//
+// Registers using the pin number itself as the event ID. Pins stay
+// registered for the life of the process and both trigger groups share
+// one connection/channel, so a notification for any registered pin can
+// arrive while a different group is waiting -- using the pin number
+// (globally unique, unlike a per-group array index) lets callers verify
+// which physical pin actually fired instead of assuming it matches
+// whichever pin they were expecting.
+static bool ensure_pin_registered(int pin) {
     if (pin < 0 || pin >= GPIO_COUNT) {
         return false;
     }
@@ -107,7 +110,7 @@ static bool ensure_pin_registered(int pin, unsigned event_id) {
     }
 
     rpi_gpio_setup_pull(pin, GPIO_IN, GPIO_PUD_OFF);
-    if (rpi_gpio_add_event_detect(pin, coid, GPIO_RISING | GPIO_FALLING, event_id)) {
+    if (rpi_gpio_add_event_detect(pin, coid, GPIO_RISING | GPIO_FALLING, (unsigned)pin)) {
         return false;
     }
 
@@ -122,7 +125,7 @@ bool sensor_wait_for_echo(int pin, double timeout_s, double *out_duration_s) {
         return false;
     }
 
-    if (!ensure_pin_registered(pin, EVENT_ECHO)) {
+    if (!ensure_pin_registered(pin)) {
         return false;
     }
 
@@ -142,6 +145,13 @@ bool sensor_wait_for_echo(int pin, double timeout_s, double *out_duration_s) {
         struct _pulse pulse;
         if (MsgReceivePulse(chid, &pulse, sizeof(pulse), NULL) == -1) {
             return false;  // timed out
+        }
+
+        // Other pins can be registered on this same shared channel (from
+        // a prior sensor_wait_for_echoes call) and fire while we're only
+        // waiting on this one -- ignore anything that isn't our pin.
+        if (pulse.value.sival_int != pin) {
+            continue;
         }
 
         // An edge fired; read the current level to determine which edge
@@ -184,12 +194,13 @@ bool sensor_wait_for_echoes(const int *pins, int count, double timeout_s, double
     int pending = count;
 
     // Configure every pin as an input and register it for edge
-    // notifications, using its array index as the event ID so we can tell
-    // which pin fired when a notification arrives on the shared channel.
+    // notifications. Registration events carry the pin number itself
+    // (see ensure_pin_registered), not this loop's index, so pulses can
+    // be matched back to the exact physical pin below.
     for (int i = 0; i < count; i++) {
         have_high[i] = have_low[i] = false;
         high_ts[i] = low_ts[i] = 0;
-        if (!ensure_pin_registered(pins[i], (unsigned)i)) {
+        if (!ensure_pin_registered(pins[i])) {
             pending--;  // this pin can never complete; stop waiting on it
         }
     }
@@ -207,10 +218,21 @@ bool sensor_wait_for_echoes(const int *pins, int count, double timeout_s, double
         struct _pulse pulse;
         if (MsgReceivePulse(chid, &pulse, sizeof(pulse), NULL) == -1) break;  // timed out
 
-        // The event ID we registered each pin with comes back here,
-        // telling us exactly which pin this notification belongs to.
-        int idx = pulse.value.sival_int;
-        if (idx < 0 || idx >= count) continue;  // unexpected, ignore
+        // The event ID we registered each pin with is the pin number
+        // itself (see ensure_pin_registered) -- map it back to this
+        // call's local index. A pin registered by a different group (or
+        // already-completed in this call) won't match any pending index
+        // here and is correctly ignored, rather than being misattributed
+        // to whichever channel happens to share a small numeric ID.
+        int fired_pin = pulse.value.sival_int;
+        int idx = -1;
+        for (int i = 0; i < count; i++) {
+            if (pins[i] == fired_pin) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx == -1) continue;  // not a pin this call is waiting on
 
         // Same rising/falling detection as the single-pin version, just
         // applied to this specific pin's tracking variables.

@@ -17,18 +17,24 @@ required. It does **not** import or depend on anything under `speech/`,
 | Median filter (3-sample window, provisional) | `proximity_filter.c` / `.h` | ✅ |
 | Proximity bands with hysteresis (`unknown`/`beyond`/`far`/`mid`/`near`/`urgent`, provisional bench thresholds) | `proximity_band.c` / `.h` | ✅ matches the bench profile in the root README/AGENTS.md §8 |
 | Per-channel state (filter + band together) | `proximity_state.c` / `.h` | ✅ |
-| Main loop | `main.c` | 🟡 reads all 8 channels every ~200 ms and **prints** name/band/filtered-mm to stdout |
+| Pulse-rate haptic pattern (silent when invalid, faster as distance shrinks) | `haptic_pattern.c` / `.h` | ✅ pure function, no hardware dependency; pulse rate/width are first-guess values, not tuned for comfort |
+| QNX motor GPIO driver | `motor_driver_qnx.c` | 🟡 drives a pin high/low via `rpi_gpio`; **only wired into the build and never run against real hardware in this environment** — driver success does not prove physical vibration (AGENTS.md §12) |
+| Main loop | `main.c` | 🟡 reads all 8 channels every ~200 ms, prints name/band/filtered-mm to stdout, and now also drives each channel's motor pin from the haptic pattern |
 | Build system | `Makefile`, `third_party/rpi_gpio/Makefile` | ✅ (added; previously there was no way to produce a binary at all — see "Fixed in this pass" below) |
 
 ## Not implemented yet
 
-- **No motor/haptic output.** `channels.c` records a motor *name* (`"motor_0"`,
-  etc.) per direction, but nothing in this directory drives a GPIO/PWM pin,
-  a motor driver IC, or any actual vibration hardware. `main.c` only prints
-  to stdout. Do not report haptic feedback as working until this exists and
-  has been felt on real motors — see AGENTS.md §8 (bounded, expiring
-  `HapticCommand`) and §12 (motor health must be verified, not assumed from
-  a driver ack).
+- **Only one of eight motor pins is assigned.** `channels.c` defines
+  `MOTOR_PIN_REAR` (BCM 14) but leaves the other seven as `MOTOR_PIN_UNSET`
+  (`-1`) — "unconfirmed... TODO: fill in as wiring is decided." `motor_set()`
+  safely no-ops for an unset pin (bounds-checked in `rpi_gpio_output`), so
+  those seven channels cannot actuate no matter how they're physically
+  wired until real GPIO numbers are filled in here. Do not report multi-
+  direction haptic feedback as working until all eight pins are assigned
+  and each has been felt on a real motor — see AGENTS.md §12 (motor health
+  must be verified, not assumed from a driver ack) and §15 ("every
+  available physical sensor activates its intended motor" applies equally
+  to motors).
 - No bounded/expiring command semantics (AGENTS.md §8: "An expired motor
   command cannot remain latched indefinitely") — there's no command output
   yet to expire.
@@ -67,6 +73,35 @@ correctly, but **not compiled against a real QNX SDP** — there is no QNX
 toolchain available in this environment. Verify `make` actually builds on
 your QNX SDP/target before relying on it, and adjust `INCLUDES`/`LIBS_all`
 if the SDP reports missing symbols.
+
+Two more issues found and fixed after that build was first attempted on
+the actual QNX Pi:
+
+4. `firmware/Makefile`'s `SRCS` list omitted `haptic_pattern.c` and
+   `motor_driver_qnx.c`, even though `main.c` calls
+   `haptic_pattern_is_on()` and `motor_set()` — the link failed with
+   `undefined reference to 'haptic_pattern_is_on'` / `'motor_set'`. Added
+   both files to `SRCS`.
+5. **Suspected root cause of unreliable sensor readings** ("some sensors
+   not working"): in `sensor_driver_qnx.c`, `ensure_pin_registered()`
+   registered each GPIO edge event using the pin's position within its
+   own trigger group (0–3) as the event ID. Since group A and group B each
+   have 4 channels, this reused the same small ID across groups — e.g.
+   `front` (group A, index 0) and `front_right` (group B, index 0) were
+   both registered under event ID 0. Every registered pin stays live on
+   one shared QNX channel for the life of the process, so a late/stray
+   edge from one group's sensor arriving while the other group is mid-wait
+   could be misattributed to whichever channel happened to share its
+   index, corrupting that channel's measured duration. Fixed by using the
+   GPIO pin number itself as the event ID (globally unique) and having
+   both `sensor_wait_for_echo` and `sensor_wait_for_echoes` verify which
+   physical pin a received pulse actually came from before accepting it.
+   **This has not been run against real hardware in this environment** —
+   it addresses a real defect found by code inspection, not a confirmed
+   fix for what you're seeing on the bench. Re-run and recheck per-channel
+   readings after rebuilding; if a channel is still consistently `unknown`
+   or implausible, it's more likely a wiring/sensor-health issue than this
+   one.
 
 ## Build
 
@@ -109,9 +144,12 @@ gcc/clang, by design (the sensor loop only ever runs on the QNX Pi).
    /tmp/sixth_sense_firmware
    ```
 5. Expect one line per channel every ~200 ms:
-   `front        near                712 mm`. There is no vibration yet —
-   this only proves the sense half of the loop end to end (see "Not
-   implemented yet").
+   `front        near                712 mm`. The `rear` channel's motor
+   (BCM 14) is driven from its own reading; the other seven channels have
+   no motor pin assigned yet and cannot actuate regardless of wiring (see
+   "Not implemented yet"). Motor GPIO output has not been confirmed to
+   produce physical vibration on real hardware — verify by touch, don't
+   assume from the absence of a driver error.
 
 ## Reporting
 

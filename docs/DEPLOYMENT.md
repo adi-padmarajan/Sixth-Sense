@@ -29,11 +29,13 @@ currently doesn't work yet.
 
 ## Device 1: Spidey Sense Pi (QNX)
 
-Runs the sensor → filter → hysteresis → proximity-band loop from
-`firmware/`. See [`firmware/README.md`](../firmware/README.md) for exactly
-what's implemented (short version: sensing and the policy math are done;
-there is **no motor/vibration output wired up yet** — the current binary
-only prints per-channel readings to stdout).
+Runs the sensor → filter → hysteresis → proximity-band → haptic-pattern
+loop from `firmware/`. See [`firmware/README.md`](../firmware/README.md)
+for exactly what's implemented (short version: sensing, the policy math,
+and pulse-pattern motor output are wired together in code, but only the
+`rear` channel has an assigned motor GPIO pin — the other seven can't
+actuate until real pins are filled in — and no motor output has been
+confirmed to produce physical vibration on real hardware yet).
 
 1. **Toolchain**: install the QNX Software Development Platform (SDP) on
    your build machine (can be your dev laptop, cross-compiling) or build
@@ -179,10 +181,14 @@ for the rehearsed sequence: directional vibration first (Spidey Sense Pi),
 then a scene question and a voice setting change (Eyes & Voice Pi), then
 the network-down and camera-unavailable degraded states.
 
-Since haptic output isn't wired up yet (see `firmware/README.md`), the
-current honest demo is: **directional sensing** on the QNX Pi (printed
-readings, not felt vibration) running alongside the **full Eyes & Voice**
-interaction on the Linux Pi. Update this section once motor output exists.
+Since only one of eight motor pins (`rear`) is assigned in firmware, and
+motor GPIO output hasn't been confirmed on real hardware yet (see
+`firmware/README.md`), the current honest demo is: **directional sensing**
+on the QNX Pi (printed readings for all 8 channels, felt vibration only
+possible on `rear` and unverified even there) running alongside the
+**full Eyes & Voice** interaction on the Linux Pi. Update this section
+once the remaining motor pins are assigned and vibration is confirmed by
+touch on real motors.
 
 ---
 
