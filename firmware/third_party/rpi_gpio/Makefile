@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-include ../../common/config.mk
+include ../config.mk
 
 #Build artifact type, possible values shared, static and exe
 ARTIFACT_TYPE = static
@@ -55,7 +55,7 @@ DEPS = -Wp,-MMD,$(@:%.o=%.d),-MT,$@
 rwildcard = $(wildcard $(addprefix $1/*.,$2)) $(foreach d,$(wildcard $1/*),$(call rwildcard,$d,$2))
 
 # includes
-INCLUDES += -I../system/gpio
+INCLUDES += -I../system_gpio
 
 #Source list
 SRCS = $(call rwildcard, ., c cpp)

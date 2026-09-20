@@ -55,9 +55,9 @@ We'd rather you know exactly what works than be impressed by a checklist.
 | "What's in front of me" / "describe" → one frame (+ optional recorded question) → cloud assistant → spoken answer | ✅ Working (cloud is opt-in; fake client for offline demos) |
 | Orchestrator (`main.py`): every grammar phrase handled, status, bounded shutdown, latency logs | ✅ Working |
 | 224 offline tests — no camera, mic, sensors, network, GPU, or API key | ✅ Passing |
-| Ultrasonic sensor read (Python: driver protocol, `pigpio` driver, deterministic fake) | 🟡 Reference only — being replaced by C firmware |
-| C firmware for the sensor → haptic loop on QNX / Raspberry Pi | 🟡 Scaffolded — `firmware/` files exist but are empty |
-| Filtering, hysteresis, proximity bands, motor output | ❌ Not yet in the repo |
+| Ultrasonic sensor read (Python: driver protocol, `pigpio` driver, deterministic fake) | 🟡 Reference only — superseded by C firmware, kept for reference |
+| C firmware for the sensor → haptic loop on QNX / Raspberry Pi: sensor read, median filter, hysteresis, proximity bands | ✅ Implemented in `firmware/`; ❌ unverified on hardware, no build system until this pass ([`firmware/README.md`](firmware/README.md)) |
+| Firmware motor/haptic output | ❌ Not yet in the repo — `main.c` currently only prints per-channel readings |
 | Voice control of haptics (pause / sensitivity) | ❌ Recognized, but replies "Haptic controls are not available yet" |
 | Measured latency, range, and coverage on assembled hardware | ❌ Not measured |
 
@@ -87,7 +87,7 @@ Three paths, kept deliberately separate so the reflexes never wait on the brain:
 | Orchestrator | [`main.py`](main.py) | Wires camera, speech, and one assistant question at a time; structured JSON-lines logs with per-question timings |
 | Versioned config | [`configs/`](configs/) | `speech.json`, `assistant.json`, `grammar.json` — all `schema_version` 1, validated on load |
 | Sensor read (Python reference) | [`sensor_python/`](sensor_python/) | `SensorDriver` protocol, `FakeSensorDriver`, `pigpio`-based `LinuxSensorDriver`, and `read_distance_mm()` (a missed echo returns `None`, never a distance) |
-| Sensor/haptic firmware (C, QNX target) | [`firmware/`](firmware/) | Placeholder files from the Python→C pivot; no code yet |
+| Sensor/haptic firmware (C, QNX target) | [`firmware/`](firmware/) | Sensor read, median filter, hysteresis, and proximity bands implemented; no motor output yet; unverified on hardware — see [`firmware/README.md`](firmware/README.md) |
 
 Each subfolder has its own README with the details, and
 [`SYSTEM_ARCHITECTURE.md`](SYSTEM_ARCHITECTURE.md) covers the companion-host
@@ -148,6 +148,13 @@ Wake phrase is **off** by default (`wake_phrase: null` in `configs/speech.json`)
 
 Everything below is the companion-host software. It runs on a laptop with a
 webcam, microphone, and speaker; no sensors or motors needed.
+
+> The full build ships on **two separate Raspberry Pis** — a QNX board
+> running the firmware in [`firmware/`](firmware/) for sensing/haptics, and
+> a Linux board running the software below for camera/voice. See
+> [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the two-device runbook,
+> or `bash scripts/setup_eyes_voice.sh` for a one-shot setup of this half
+> on a fresh machine.
 
 ```bash
 git clone https://github.com/adi-padmarajan/Sixth-Sense.git
@@ -295,11 +302,13 @@ example-usage.py         speech-only smoke test
 computer-vision/         YOLO tracker, SceneState, offline tests, committed checkpoint
 speech/                  Piper TTS + Vosk STT service, fakes, downloaded models (gitignored)
 omni/                    assistant client, scene request builder, fake, vendor CLIs, audit ledger
-sensor_python/           Python sensor reference: SensorDriver protocol, pigpio driver, fake
-firmware/                C firmware for the QNX sensor/haptic loop (scaffold, empty)
+sensor_python/           Python sensor reference: SensorDriver protocol, pigpio driver, fake (superseded by firmware/)
+firmware/                C firmware for the QNX sensor/haptic loop: sensing + policy implemented, no motor output yet
 configs/                 speech.json · assistant.json · grammar.json (all schema_version 1)
-scripts/                 fetch_models.sh · check_capture.py · summarize_latency.py
+scripts/                 fetch_models.sh · check_capture.py · summarize_latency.py · setup_eyes_voice.sh
+deploy/                  systemd unit template for the Eyes & Voice host
 tests/                   orchestrator, speech, and latency tests (+ fixtures)
+docs/DEPLOYMENT.md       two-device deployment runbook (QNX Spidey Sense Pi + Linux Eyes & Voice Pi)
 SYSTEM_ARCHITECTURE.md   companion-host software architecture in depth
 proj_spec.md             original project spec and open questions
 AGENTS.md / CLAUDE.md    engineering guidance for contributors and coding agents
