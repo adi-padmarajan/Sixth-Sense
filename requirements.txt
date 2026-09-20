@@ -1,7 +1,33 @@
+# Eyes & Voice (companion host) dependencies. Install on the Linux
+# companion Pi or a dev laptop; see docs/DEPLOYMENT.md. The QNX Spidey
+# Sense Pi runs firmware/ (C, built with the QNX SDP) and needs none of
+# this -- it never runs Python.
+
+# Offline speech (Piper TTS + Vosk STT)
 piper-tts
 vosk
 sounddevice
+
+# Computer vision: Ultralytics tracking (pulls in torch/torchvision) and
+# OpenCV. Verified on macOS with ultralytics 8.4.138 / opencv-python
+# 5.0.0.93 (computer-vision/README.md). On Raspberry Pi OS (aarch64),
+# prefer piwheels-provided wheels (Raspberry Pi OS's default pip config
+# already points at piwheels.org) -- see docs/DEPLOYMENT.md for the
+# headless-preview and ARM-wheel caveats.
+ultralytics>=8.4,<9
+opencv-python>=4.9
+
+# Shared
 numpy
+
+# OMNI assistant client (HTTP + streaming demos)
 httpx>=0.27,<1
 websockets>=15,<17
+
+# Test runner (tests/, omni/tests/, computer-vision/Tests/)
+pytest
+
+# Legacy Python sensor reference (sensor_python/) -- superseded by the C
+# firmware in firmware/. Not imported by main.py; keep only if you still
+# exercise the old pigpio-based reference driver directly.
 pigpio

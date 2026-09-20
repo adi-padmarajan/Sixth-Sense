@@ -1,0 +1,33 @@
+# systemd unit template for the Eyes & Voice companion host (Linux Pi).
+# Optional convenience for the demo; not required to run the project.
+#
+# This is a TEMPLATE: edit User/WorkingDirectory/ExecStart for your device
+# before installing, then:
+#
+#   sudo cp deploy/sixth-sense-eyes-voice.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sixth-sense-eyes-voice
+#   journalctl -u sixth-sense-eyes-voice -f
+#
+# Camera/mic/speaker access typically requires the service user to be in
+# the video/audio groups (or run as the desktop user's session) -- verify
+# permissions on your actual image; this file does not attempt to grant them.
+# Cloud access stays OFF unless you add --cloud (and export YIBU_API_KEY=...
+# via Environment= or an EnvironmentFile=) below -- see docs/DEPLOYMENT.md.
+
+[Unit]
+Description=sixth-sense Eyes & Voice (camera, speech, assistant orchestrator)
+After=sound.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Sixth-Sense
+ExecStart=/home/pi/Sixth-Sense/.venv/bin/python main.py
+Restart=on-failure
+RestartSec=2
+# Environment=YIBU_API_KEY=...          # only if you intentionally enable --cloud
+# ExecStart=/home/pi/Sixth-Sense/.venv/bin/python main.py --cloud
+
+[Install]
+WantedBy=multi-user.target
