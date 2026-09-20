@@ -97,6 +97,16 @@ We'd rather you know exactly what works than be impressed by a checklist.
 
 ## How it works
 
+### System architecture overview
+
+![SpideyIRL system architecture: independent proximity and haptic processing alongside camera tracking, voice input, an opt-in multimodal assistant, and speech output.](docs/spideyirl-architecture.png)
+
+This diagram illustrates the intended architecture. The current build uses
+ultrasonic sensors rather than the depicted ToF ring; Vosk handles the configured
+command grammar, and the cross-device haptic alert connection shown here is not
+implemented. See [System Architecture](SYSTEM_ARCHITECTURE.md) for implementation
+details and the status table above for verification limits.
+
 ### Two devices, three paths
 
 The build ships on **two independent Raspberry Pis** worn on the same headband,
