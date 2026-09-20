@@ -2,11 +2,15 @@
 #include "sensor.h"
 
 int main(void) {
-    int distance_mm;
-    if (read_distance_mm(2, 3, &distance_mm)) {
-        printf("%d\n", distance_mm);
-    } else {
-        printf("unknown\n");
+    channel_reading_t readings[CHANNEL_COUNT];
+    read_all_channel_distances_mm(readings);
+
+    for (int i = 0; i < CHANNEL_COUNT; i++) {
+        if (readings[i].valid) {
+            printf("%-11s %d mm\n", readings[i].name, readings[i].distance_mm);
+        } else {
+            printf("%-11s unknown\n", readings[i].name);
+        }
     }
     return 0;
 }

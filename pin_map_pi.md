@@ -11,7 +11,7 @@ gpio board number
 
 trigger
 23 rail even
-27 rail odd
+29 rail odd
 
 trigger groups are even and odd
 read order should loop through 1-8 by alternating trigger groups and moving to next pin
