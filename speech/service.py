@@ -328,11 +328,13 @@ class SpeechService:
         import numpy as np
         import sounddevice as sd
 
+        from .tts import resolve_output_device
+
         rate = self.config.samplerate
         t = np.arange(int(rate * 0.06)) / rate
         samples = (0.08 * np.sin(2 * np.pi * 880 * t) * np.hanning(len(t))).astype("float32")
         with sd.OutputStream(samplerate=rate, channels=1, dtype="float32",
-                             device=self.config.tts_device) as stream:
+                             device=resolve_output_device(self.config.tts_device)) as stream:
             stream.write(samples)
 
     def _on_recognized(self, text: str, recognized_at: float, source_mode: str):
