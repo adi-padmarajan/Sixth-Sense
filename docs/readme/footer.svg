@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 230" width="1200" height="230" role="img" aria-label="With great power comes great responsibility. Built at Hack the North 2026." font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#161a2e"/><stop offset="1" stop-color="#05060b"/>
+    </radialGradient>
+    <radialGradient id="red" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".55"/><stop offset="1" stop-color="#e3262f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blue" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#2a5bff" stop-opacity=".55"/><stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bronze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd9a3"/><stop offset=".35" stop-color="#e0914a"/>
+      <stop offset=".65" stop-color="#b8692a"/><stop offset="1" stop-color="#7a3f17"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1dc"/><stop offset=".45" stop-color="#f0a860"/><stop offset="1" stop-color="#a4561f"/>
+    </linearGradient>
+    <linearGradient id="rb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b45"/><stop offset=".5" stop-color="#ffe9e9"/><stop offset="1" stop-color="#5b83ff"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-1 0; 1 0; 1 0" keyTimes="0; .5; 1" dur="4s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity="0"/><stop offset=".3" stop-color="#e3262f"/>
+      <stop offset=".5" stop-color="#ffd9a3"/><stop offset=".7" stop-color="#2a5bff"/>
+      <stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vbar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".35"/><stop offset="1" stop-color="#2a5bff" stop-opacity=".08"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <clipPath id="clip"><rect x="8" y="8" width="1184" height="214" rx="22"/></clipPath>
+  <g clip-path="url(#clip)">
+    <rect width="1200" height="230" fill="url(#bg)"/>
+    <ellipse cx="0" cy="230" rx="564" ry="300" fill="url(#red)">
+      <animate attributeName="opacity" values=".7;1;.7" dur="5s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="1200" cy="0" rx="564" ry="300" fill="url(#blue)">
+      <animate attributeName="opacity" values="1;.7;1" dur="5s" repeatCount="indefinite"/></ellipse>
+    <g fill="none" stroke="#fff" stroke-opacity=".13" stroke-width="1.4">
+    <line x1="8" y1="8" x2="158.0" y2="8.0"/>
+    <line x1="8" y1="8" x2="152.9" y2="46.8"/>
+    <line x1="8" y1="8" x2="137.9" y2="83.0"/>
+    <line x1="8" y1="8" x2="114.1" y2="114.1"/>
+    <line x1="8" y1="8" x2="83.0" y2="137.9"/>
+    <line x1="8" y1="8" x2="46.8" y2="152.9"/>
+    <line x1="8" y1="8" x2="8.0" y2="158.0"/>
+    <path d="M53.0,8.0 Q47.3,13.2 51.5,19.6 Q44.6,23.2 47.0,30.5 Q39.4,32.1 39.8,39.8 Q32.1,39.4 30.5,47.0 Q23.2,44.6 19.6,51.5 Q13.2,47.3 8.0,53.0 "/>
+    <path d="M98.0,8.0 Q86.5,18.3 94.9,31.3 Q81.2,38.3 85.9,53.0 Q70.8,56.2 71.6,71.6 Q56.2,70.8 53.0,85.9 Q38.3,81.2 31.3,94.9 Q18.3,86.5 8.0,98.0 "/>
+    <path d="M143.0,8.0 Q125.8,23.5 138.4,42.9 Q117.8,53.5 124.9,75.5 Q102.3,80.3 103.5,103.5 Q80.3,102.3 75.5,124.9 Q53.5,117.8 42.9,138.4 Q23.5,125.8 8.0,143.0 "/>
+    <path d="M188.0,8.0 Q165.0,28.7 181.9,54.6 Q154.3,68.6 163.9,98.0 Q133.7,104.4 135.3,135.3 Q104.4,133.7 98.0,163.9 Q68.6,154.3 54.6,181.9 Q28.7,165.0 8.0,188.0 "/>
+    <path d="M233.0,8.0 Q204.3,33.8 225.3,66.2 Q190.9,83.8 202.9,120.5 Q165.1,128.5 167.1,167.1 Q128.5,165.1 120.5,202.9 Q83.8,190.9 66.2,225.3 Q33.8,204.3 8.0,233.0 "/>
+<line x1="1192" y1="8" x2="1192.0" y2="158.0"/>
+    <line x1="1192" y1="8" x2="1153.2" y2="152.9"/>
+    <line x1="1192" y1="8" x2="1117.0" y2="137.9"/>
+    <line x1="1192" y1="8" x2="1085.9" y2="114.1"/>
+    <line x1="1192" y1="8" x2="1062.1" y2="83.0"/>
+    <line x1="1192" y1="8" x2="1047.1" y2="46.8"/>
+    <line x1="1192" y1="8" x2="1042.0" y2="8.0"/>
+    <path d="M1192.0,53.0 Q1186.8,47.3 1180.4,51.5 Q1176.8,44.6 1169.5,47.0 Q1167.9,39.4 1160.2,39.8 Q1160.6,32.1 1153.0,30.5 Q1155.4,23.2 1148.5,19.6 Q1152.7,13.2 1147.0,8.0 "/>
+    <path d="M1192.0,98.0 Q1181.7,86.5 1168.7,94.9 Q1161.7,81.2 1147.0,85.9 Q1143.8,70.8 1128.4,71.6 Q1129.2,56.2 1114.1,53.0 Q1118.8,38.3 1105.1,31.3 Q1113.5,18.3 1102.0,8.0 "/>
+    <path d="M1192.0,143.0 Q1176.5,125.8 1157.1,138.4 Q1146.5,117.8 1124.5,124.9 Q1119.7,102.3 1096.5,103.5 Q1097.7,80.3 1075.1,75.5 Q1082.2,53.5 1061.6,42.9 Q1074.2,23.5 1057.0,8.0 "/>
+    <path d="M1192.0,188.0 Q1171.3,165.0 1145.4,181.9 Q1131.4,154.3 1102.0,163.9 Q1095.6,133.7 1064.7,135.3 Q1066.3,104.4 1036.1,98.0 Q1045.7,68.6 1018.1,54.6 Q1035.0,28.7 1012.0,8.0 "/>
+    <path d="M1192.0,233.0 Q1166.2,204.3 1133.8,225.3 Q1116.2,190.9 1079.5,202.9 Q1071.5,165.1 1032.9,167.1 Q1034.9,128.5 997.1,120.5 Q1009.1,83.8 974.7,66.2 Q995.7,33.8 967.0,8.0 "/>
+<line x1="8" y1="222" x2="8.0" y2="112.0"/>
+    <line x1="8" y1="222" x2="36.5" y2="115.7"/>
+    <line x1="8" y1="222" x2="63.0" y2="126.7"/>
+    <line x1="8" y1="222" x2="85.8" y2="144.2"/>
+    <line x1="8" y1="222" x2="103.3" y2="167.0"/>
+    <line x1="8" y1="222" x2="114.3" y2="193.5"/>
+    <line x1="8" y1="222" x2="118.0" y2="222.0"/>
+    <path d="M8.0,182.0 Q12.6,187.1 18.4,183.4 Q21.5,189.5 28.0,187.4 Q29.4,194.1 36.3,193.7 Q35.9,200.6 42.6,202.0 Q40.5,208.5 46.6,211.6 Q42.9,217.4 48.0,222.0 "/>
+    <path d="M8.0,142.0 Q17.2,152.2 28.7,144.7 Q34.9,157.0 48.0,152.7 Q50.9,166.1 64.6,165.4 Q63.9,179.1 77.3,182.0 Q73.0,195.1 85.3,201.3 Q77.8,212.8 88.0,222.0 "/>
+    <path d="M8.0,102.0 Q21.8,117.3 39.1,106.1 Q48.4,124.4 68.0,118.1 Q72.3,138.2 92.9,137.1 Q91.8,157.7 111.9,162.0 Q105.6,181.6 123.9,190.9 Q112.7,208.2 128.0,222.0 "/>
+<line x1="1192" y1="222" x2="1082.0" y2="222.0"/>
+    <line x1="1192" y1="222" x2="1085.7" y2="193.5"/>
+    <line x1="1192" y1="222" x2="1096.7" y2="167.0"/>
+    <line x1="1192" y1="222" x2="1114.2" y2="144.2"/>
+    <line x1="1192" y1="222" x2="1137.0" y2="126.7"/>
+    <line x1="1192" y1="222" x2="1163.5" y2="115.7"/>
+    <line x1="1192" y1="222" x2="1192.0" y2="112.0"/>
+    <path d="M1152.0,222.0 Q1157.1,217.4 1153.4,211.6 Q1159.5,208.5 1157.4,202.0 Q1164.1,200.6 1163.7,193.7 Q1170.6,194.1 1172.0,187.4 Q1178.5,189.5 1181.6,183.4 Q1187.4,187.1 1192.0,182.0 "/>
+    <path d="M1112.0,222.0 Q1122.2,212.8 1114.7,201.3 Q1127.0,195.1 1122.7,182.0 Q1136.1,179.1 1135.4,165.4 Q1149.1,166.1 1152.0,152.7 Q1165.1,157.0 1171.3,144.7 Q1182.8,152.2 1192.0,142.0 "/>
+    <path d="M1072.0,222.0 Q1087.3,208.2 1076.1,190.9 Q1094.4,181.6 1088.1,162.0 Q1108.2,157.7 1107.1,137.1 Q1127.7,138.2 1132.0,118.1 Q1151.6,124.4 1160.9,106.1 Q1178.2,117.3 1192.0,102.0 "/>
+    </g>
+    <circle cx="200" cy="60" r="1.8" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
+    <circle cx="1000" cy="170" r="1.8" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.2s" repeatCount="indefinite"/></circle>
+    <circle cx="820" cy="50" r="1.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="2.2s" repeatCount="indefinite"/></circle>
+  </g>
+  <g clip-path="url(#clip)">
+  <circle cx="600" cy="70" r="10" fill="none" stroke="#e3262f" stroke-width="1.2" opacity="0"><animate attributeName="r" values="10;260" dur="4s" begin="0.00s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;0" dur="4s" begin="0.00s" repeatCount="indefinite"/></circle>
+  <circle cx="600" cy="70" r="10" fill="none" stroke="#2a5bff" stroke-width="1.2" opacity="0"><animate attributeName="r" values="10;260" dur="4s" begin="2.00s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;0" dur="4s" begin="2.00s" repeatCount="indefinite"/></circle>
+  </g>
+  <rect x="8" y="8" width="1184" height="214" rx="22" fill="none" stroke="url(#frame)" stroke-width="3"/>
+  <line x1="600" y1="8" x2="600" y2="40" stroke="#fff" stroke-opacity=".35">
+    <animate attributeName="y2" values="40;58;40" dur="4s" repeatCount="indefinite"/></line>
+  <g><animateTransform attributeName="transform" type="translate" values="0 0;0 18;0 0" dur="4s" repeatCount="indefinite"/>
+    <g transform="translate(600,50.0) scale(1.0)" fill="#e3262f" stroke="#e3262f" stroke-width="2" stroke-linecap="round">
+      <ellipse rx="7" ry="9"/><circle cy="-10" r="5"/>
+      <path fill="none" d="M-5,-4 L-16,-14 M-6,0 L-18,-3 M-6,4 L-17,10 M-4,7 L-13,18 M5,-4 L16,-14 M6,0 L18,-3 M6,4 L17,10 M4,7 L13,18"/>
+    </g></g>
+  <g text-anchor="middle">
+    <text x="600" y="150" font-size="32" font-weight="800" fill="url(#rb)">With great power comes great responsibility.</text>
+    <text x="600" y="190" font-size="15" letter-spacing="2" fill="#aab3c8">BUILT AT HACK THE NORTH 2026  ·  3RD PLACE, QNX TRACK  ·  MIT LICENSE</text>
+  </g>
+</svg>

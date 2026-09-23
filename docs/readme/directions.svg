@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" role="img" aria-label="Direction map: eight sensors around the head, group A cardinals and group B diagonals, each driving the motor on the same side." font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#161a2e"/><stop offset="1" stop-color="#05060b"/>
+    </radialGradient>
+    <radialGradient id="red" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".55"/><stop offset="1" stop-color="#e3262f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blue" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#2a5bff" stop-opacity=".55"/><stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bronze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd9a3"/><stop offset=".35" stop-color="#e0914a"/>
+      <stop offset=".65" stop-color="#b8692a"/><stop offset="1" stop-color="#7a3f17"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1dc"/><stop offset=".45" stop-color="#f0a860"/><stop offset="1" stop-color="#a4561f"/>
+    </linearGradient>
+    <linearGradient id="rb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b45"/><stop offset=".5" stop-color="#ffe9e9"/><stop offset="1" stop-color="#5b83ff"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-1 0; 1 0; 1 0" keyTimes="0; .5; 1" dur="4s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity="0"/><stop offset=".3" stop-color="#e3262f"/>
+      <stop offset=".5" stop-color="#ffd9a3"/><stop offset=".7" stop-color="#2a5bff"/>
+      <stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vbar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".35"/><stop offset="1" stop-color="#2a5bff" stop-opacity=".08"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <clipPath id="clip"><rect x="8" y="8" width="1184" height="544" rx="22"/></clipPath>
+  <g clip-path="url(#clip)">
+    <rect width="1200" height="560" fill="url(#bg)"/>
+    <ellipse cx="0" cy="560" rx="564" ry="588" fill="url(#red)">
+      <animate attributeName="opacity" values=".7;1;.7" dur="5s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="1200" cy="0" rx="564" ry="588" fill="url(#blue)">
+      <animate attributeName="opacity" values="1;.7;1" dur="5s" repeatCount="indefinite"/></ellipse>
+    <g fill="none" stroke="#fff" stroke-opacity=".13" stroke-width="1.4">
+    <line x1="8" y1="8" x2="188.0" y2="8.0"/>
+    <line x1="8" y1="8" x2="181.9" y2="54.6"/>
+    <line x1="8" y1="8" x2="163.9" y2="98.0"/>
+    <line x1="8" y1="8" x2="135.3" y2="135.3"/>
+    <line x1="8" y1="8" x2="98.0" y2="163.9"/>
+    <line x1="8" y1="8" x2="54.6" y2="181.9"/>
+    <line x1="8" y1="8" x2="8.0" y2="188.0"/>
+    <path d="M53.0,8.0 Q47.3,13.2 51.5,19.6 Q44.6,23.2 47.0,30.5 Q39.4,32.1 39.8,39.8 Q32.1,39.4 30.5,47.0 Q23.2,44.6 19.6,51.5 Q13.2,47.3 8.0,53.0 "/>
+    <path d="M98.0,8.0 Q86.5,18.3 94.9,31.3 Q81.2,38.3 85.9,53.0 Q70.8,56.2 71.6,71.6 Q56.2,70.8 53.0,85.9 Q38.3,81.2 31.3,94.9 Q18.3,86.5 8.0,98.0 "/>
+    <path d="M143.0,8.0 Q125.8,23.5 138.4,42.9 Q117.8,53.5 124.9,75.5 Q102.3,80.3 103.5,103.5 Q80.3,102.3 75.5,124.9 Q53.5,117.8 42.9,138.4 Q23.5,125.8 8.0,143.0 "/>
+    <path d="M188.0,8.0 Q165.0,28.7 181.9,54.6 Q154.3,68.6 163.9,98.0 Q133.7,104.4 135.3,135.3 Q104.4,133.7 98.0,163.9 Q68.6,154.3 54.6,181.9 Q28.7,165.0 8.0,188.0 "/>
+    <path d="M233.0,8.0 Q204.3,33.8 225.3,66.2 Q190.9,83.8 202.9,120.5 Q165.1,128.5 167.1,167.1 Q128.5,165.1 120.5,202.9 Q83.8,190.9 66.2,225.3 Q33.8,204.3 8.0,233.0 "/>
+<line x1="1192" y1="8" x2="1192.0" y2="188.0"/>
+    <line x1="1192" y1="8" x2="1145.4" y2="181.9"/>
+    <line x1="1192" y1="8" x2="1102.0" y2="163.9"/>
+    <line x1="1192" y1="8" x2="1064.7" y2="135.3"/>
+    <line x1="1192" y1="8" x2="1036.1" y2="98.0"/>
+    <line x1="1192" y1="8" x2="1018.1" y2="54.6"/>
+    <line x1="1192" y1="8" x2="1012.0" y2="8.0"/>
+    <path d="M1192.0,53.0 Q1186.8,47.3 1180.4,51.5 Q1176.8,44.6 1169.5,47.0 Q1167.9,39.4 1160.2,39.8 Q1160.6,32.1 1153.0,30.5 Q1155.4,23.2 1148.5,19.6 Q1152.7,13.2 1147.0,8.0 "/>
+    <path d="M1192.0,98.0 Q1181.7,86.5 1168.7,94.9 Q1161.7,81.2 1147.0,85.9 Q1143.8,70.8 1128.4,71.6 Q1129.2,56.2 1114.1,53.0 Q1118.8,38.3 1105.1,31.3 Q1113.5,18.3 1102.0,8.0 "/>
+    <path d="M1192.0,143.0 Q1176.5,125.8 1157.1,138.4 Q1146.5,117.8 1124.5,124.9 Q1119.7,102.3 1096.5,103.5 Q1097.7,80.3 1075.1,75.5 Q1082.2,53.5 1061.6,42.9 Q1074.2,23.5 1057.0,8.0 "/>
+    <path d="M1192.0,188.0 Q1171.3,165.0 1145.4,181.9 Q1131.4,154.3 1102.0,163.9 Q1095.6,133.7 1064.7,135.3 Q1066.3,104.4 1036.1,98.0 Q1045.7,68.6 1018.1,54.6 Q1035.0,28.7 1012.0,8.0 "/>
+    <path d="M1192.0,233.0 Q1166.2,204.3 1133.8,225.3 Q1116.2,190.9 1079.5,202.9 Q1071.5,165.1 1032.9,167.1 Q1034.9,128.5 997.1,120.5 Q1009.1,83.8 974.7,66.2 Q995.7,33.8 967.0,8.0 "/>
+<line x1="8" y1="552" x2="8.0" y2="422.0"/>
+    <line x1="8" y1="552" x2="41.6" y2="426.4"/>
+    <line x1="8" y1="552" x2="73.0" y2="439.4"/>
+    <line x1="8" y1="552" x2="99.9" y2="460.1"/>
+    <line x1="8" y1="552" x2="120.6" y2="487.0"/>
+    <line x1="8" y1="552" x2="133.6" y2="518.4"/>
+    <line x1="8" y1="552" x2="138.0" y2="552.0"/>
+    <path d="M8.0,512.0 Q12.6,517.1 18.4,513.4 Q21.5,519.5 28.0,517.4 Q29.4,524.1 36.3,523.7 Q35.9,530.6 42.6,532.0 Q40.5,538.5 46.6,541.6 Q42.9,547.4 48.0,552.0 "/>
+    <path d="M8.0,472.0 Q17.2,482.2 28.7,474.7 Q34.9,487.0 48.0,482.7 Q50.9,496.1 64.6,495.4 Q63.9,509.1 77.3,512.0 Q73.0,525.1 85.3,531.3 Q77.8,542.8 88.0,552.0 "/>
+    <path d="M8.0,432.0 Q21.8,447.3 39.1,436.1 Q48.4,454.4 68.0,448.1 Q72.3,468.2 92.9,467.1 Q91.8,487.7 111.9,492.0 Q105.6,511.6 123.9,520.9 Q112.7,538.2 128.0,552.0 "/>
+<line x1="1192" y1="552" x2="1062.0" y2="552.0"/>
+    <line x1="1192" y1="552" x2="1066.4" y2="518.4"/>
+    <line x1="1192" y1="552" x2="1079.4" y2="487.0"/>
+    <line x1="1192" y1="552" x2="1100.1" y2="460.1"/>
+    <line x1="1192" y1="552" x2="1127.0" y2="439.4"/>
+    <line x1="1192" y1="552" x2="1158.4" y2="426.4"/>
+    <line x1="1192" y1="552" x2="1192.0" y2="422.0"/>
+    <path d="M1152.0,552.0 Q1157.1,547.4 1153.4,541.6 Q1159.5,538.5 1157.4,532.0 Q1164.1,530.6 1163.7,523.7 Q1170.6,524.1 1172.0,517.4 Q1178.5,519.5 1181.6,513.4 Q1187.4,517.1 1192.0,512.0 "/>
+    <path d="M1112.0,552.0 Q1122.2,542.8 1114.7,531.3 Q1127.0,525.1 1122.7,512.0 Q1136.1,509.1 1135.4,495.4 Q1149.1,496.1 1152.0,482.7 Q1165.1,487.0 1171.3,474.7 Q1182.8,482.2 1192.0,472.0 "/>
+    <path d="M1072.0,552.0 Q1087.3,538.2 1076.1,520.9 Q1094.4,511.6 1088.1,492.0 Q1108.2,487.7 1107.1,467.1 Q1127.7,468.2 1132.0,448.1 Q1151.6,454.4 1160.9,436.1 Q1178.2,447.3 1192.0,432.0 "/>
+    </g>
+    <circle cx="640" cy="60" r="1.8" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
+    <circle cx="1100" cy="480" r="1.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.1s" repeatCount="indefinite"/></circle>
+    <circle cx="660" cy="500" r="1.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="2s" repeatCount="indefinite"/></circle>
+  </g>
+  <rect x="8" y="8" width="1184" height="544" rx="22" fill="none" stroke="url(#frame)" stroke-width="3"/>
+  <path d="M341.9,186.7 A95,95 0 0 1 378.1,186.7 L399.1,78.8 A205,205 0 0 0 320.9,78.8 Z" fill="#e3262f" fill-opacity=".16" stroke="#e3262f" stroke-opacity=".5"/>
+  <circle r="5" fill="#ff5a5f" filter="url(#softglow)" opacity="0"><animate attributeName="cx" values="360.0;360.0" dur="2s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="cy" values="185.0;75.0" dur="2s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2s" begin="0.0s" repeatCount="indefinite"/></circle>
+  <circle cx="360.0" cy="185.0" r="7" fill="#e3262f" stroke="#fff" stroke-width="1.5"/>
+  <text x="360.0" y="40.0" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="15" font-weight="700" fill="#ffffff">front</text><text x="360.0" y="58.0" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="12" fill="#aab3c8">0° · motor_0</text>
+  <path d="M413.1,201.2 A95,95 0 0 1 438.8,226.9 L530.0,165.4 A205,205 0 0 0 474.6,110.0 Z" fill="#2a5bff" fill-opacity=".16" stroke="#2a5bff" stroke-opacity=".5"/>
+  <circle r="5" fill="#6d93ff" filter="url(#softglow)" opacity="0"><animate attributeName="cx" values="427.2;505.0" dur="2s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="cy" values="212.8;135.0" dur="2s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2s" begin="1.0s" repeatCount="indefinite"/></circle>
+  <circle cx="427.2" cy="212.8" r="7" fill="#2a5bff" stroke="#fff" stroke-width="1.5"/>
+  <text x="528.3" y="109.7" text-anchor="start" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="15" font-weight="700" fill="#ffffff">front_right</text><text x="528.3" y="127.7" text-anchor="start" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="12" fill="#aab3c8">45° · motor_1</text>
+  <path d="M453.3,261.9 A95,95 0 0 1 453.3,298.1 L561.2,319.1 A205,205 0 0 0 561.2,240.9 Z" fill="#e3262f" fill-opacity=".16" stroke="#e3262f" stroke-opacity=".5"/>
+  <circle r="5" fill="#ff5a5f" filter="url(#softglow)" opacity="0"><animate attributeName="cx" values="455.0;565.0" dur="2s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="cy" values="280.0;280.0" dur="2s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2s" begin="0.0s" repeatCount="indefinite"/></circle>
+  <circle cx="455.0" cy="280.0" r="7" fill="#e3262f" stroke="#fff" stroke-width="1.5"/>
+  <text x="598.0" y="278.0" text-anchor="start" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="15" font-weight="700" fill="#ffffff">right</text><text x="598.0" y="296.0" text-anchor="start" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="12" fill="#aab3c8">90° · motor_2</text>
+  <path d="M438.8,333.1 A95,95 0 0 1 413.1,358.8 L474.6,450.0 A205,205 0 0 0 530.0,394.6 Z" fill="#2a5bff" fill-opacity=".16" stroke="#2a5bff" stroke-opacity=".5"/>
+  <circle r="5" fill="#6d93ff" filter="url(#softglow)" opacity="0"><animate attributeName="cx" values="427.2;505.0" dur="2s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="cy" values="347.2;425.0" dur="2s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2s" begin="1.0s" repeatCount="indefinite"/></circle>
+  <circle cx="427.2" cy="347.2" r="7" fill="#2a5bff" stroke="#fff" stroke-width="1.5"/>
+  <text x="528.3" y="446.3" text-anchor="start" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="15" font-weight="700" fill="#ffffff">rear_right</text><text x="528.3" y="464.3" text-anchor="start" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="12" fill="#aab3c8">135° · motor_3</text>
+  <path d="M378.1,373.3 A95,95 0 0 1 341.9,373.3 L320.9,481.2 A205,205 0 0 0 399.1,481.2 Z" fill="#e3262f" fill-opacity=".16" stroke="#e3262f" stroke-opacity=".5"/>
+  <circle r="5" fill="#ff5a5f" filter="url(#softglow)" opacity="0"><animate attributeName="cx" values="360.0;360.0" dur="2s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="cy" values="375.0;485.0" dur="2s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2s" begin="0.0s" repeatCount="indefinite"/></circle>
+  <circle cx="360.0" cy="375.0" r="7" fill="#e3262f" stroke="#fff" stroke-width="1.5"/>
+  <text x="360.0" y="516.0" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="15" font-weight="700" fill="#ffffff">rear</text><text x="360.0" y="534.0" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="12" fill="#aab3c8">180° · motor_4</text>
+  <path d="M306.9,358.8 A95,95 0 0 1 281.2,333.1 L190.0,394.6 A205,205 0 0 0 245.4,450.0 Z" fill="#2a5bff" fill-opacity=".16" stroke="#2a5bff" stroke-opacity=".5"/>
+  <circle r="5" fill="#6d93ff" filter="url(#softglow)" opacity="0"><animate attributeName="cx" values="292.8;215.0" dur="2s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="cy" values="347.2;425.0" dur="2s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2s" begin="1.0s" repeatCount="indefinite"/></circle>
+  <circle cx="292.8" cy="347.2" r="7" fill="#2a5bff" stroke="#fff" stroke-width="1.5"/>
+  <text x="191.7" y="446.3" text-anchor="end" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="15" font-weight="700" fill="#ffffff">rear_left</text><text x="191.7" y="464.3" text-anchor="end" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="12" fill="#aab3c8">225° · motor_5</text>
+  <path d="M266.7,298.1 A95,95 0 0 1 266.7,261.9 L158.8,240.9 A205,205 0 0 0 158.8,319.1 Z" fill="#e3262f" fill-opacity=".16" stroke="#e3262f" stroke-opacity=".5"/>
+  <circle r="5" fill="#ff5a5f" filter="url(#softglow)" opacity="0"><animate attributeName="cx" values="265.0;155.0" dur="2s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="cy" values="280.0;280.0" dur="2s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2s" begin="0.0s" repeatCount="indefinite"/></circle>
+  <circle cx="265.0" cy="280.0" r="7" fill="#e3262f" stroke="#fff" stroke-width="1.5"/>
+  <text x="122.0" y="278.0" text-anchor="end" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="15" font-weight="700" fill="#ffffff">left</text><text x="122.0" y="296.0" text-anchor="end" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="12" fill="#aab3c8">270° · motor_6</text>
+  <path d="M281.2,226.9 A95,95 0 0 1 306.9,201.2 L245.4,110.0 A205,205 0 0 0 190.0,165.4 Z" fill="#2a5bff" fill-opacity=".16" stroke="#2a5bff" stroke-opacity=".5"/>
+  <circle r="5" fill="#6d93ff" filter="url(#softglow)" opacity="0"><animate attributeName="cx" values="292.8;215.0" dur="2s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="cy" values="212.8;135.0" dur="2s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2s" begin="1.0s" repeatCount="indefinite"/></circle>
+  <circle cx="292.8" cy="212.8" r="7" fill="#2a5bff" stroke="#fff" stroke-width="1.5"/>
+  <text x="191.7" y="109.7" text-anchor="end" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="15" font-weight="700" fill="#ffffff">front_left</text><text x="191.7" y="127.7" text-anchor="end" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="12" fill="#aab3c8">315° · motor_7</text>
+  <g transform="translate(360,280)"><ellipse rx="62" ry="74" fill="#12162a" stroke="#fff" stroke-opacity=".6" stroke-width="2"/><ellipse cx="-64" rx="8" ry="16" fill="#12162a" stroke="#fff" stroke-opacity=".6" stroke-width="2"/><ellipse cx="64" rx="8" ry="16" fill="#12162a" stroke="#fff" stroke-opacity=".6" stroke-width="2"/><path d="M-12,-72 L0,-90 L12,-72" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="2"/><text y="6" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="3" fill="#aab3c8">WEARER</text></g>
+  <text x="720" y="110" font-size="13" font-weight="700" letter-spacing="3" fill="#ff5a5f">HEAD-RELATIVE · CLOCKWISE FROM ABOVE</text>
+  <circle cx="729" cy="164" r="9" fill="#e3262f"/>
+  <text x="750" y="171" font-size="21" font-weight="800" fill="#ffffff">Group A · cardinals</text>
+  <text x="750" y="197" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#aab3c8">front · right · rear · left · trigger BCM 11</text>
+  <circle cx="729" cy="244" r="9" fill="#2a5bff"/>
+  <text x="750" y="251" font-size="21" font-weight="800" fill="#ffffff">Group B · diagonals</text>
+  <text x="750" y="277" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#aab3c8">the four 45° directions · trigger BCM 5</text>
+  <text x="720" y="336" font-size="16" fill="#ffffff" fill-opacity=".85">The groups fire alternately, so two neighbouring</text>
+  <text x="720" y="359" font-size="16" fill="#ffffff" fill-opacity=".85">sensors never listen for the same echo.</text>
+  <rect x="720" y="396" width="4" height="52" rx="2" fill="#cd7f32"/>
+  <text x="738" y="416" font-size="15" font-style="italic" fill="#ffd9a3">Beams don't overlap: this is eight-direction</text>
+  <text x="738" y="440" font-size="15" font-style="italic" fill="#ffd9a3">sensing, not continuous 360° coverage.</text>
+</svg>

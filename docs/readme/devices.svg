@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="1200" height="480" role="img" aria-label="Two devices: the QNX Spidey Sense Pi runs sensors to motors locally; the Eyes and Voice host runs camera, speech and the optional cloud assistant. No link between them." font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#161a2e"/><stop offset="1" stop-color="#05060b"/>
+    </radialGradient>
+    <radialGradient id="red" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".55"/><stop offset="1" stop-color="#e3262f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blue" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#2a5bff" stop-opacity=".55"/><stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bronze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd9a3"/><stop offset=".35" stop-color="#e0914a"/>
+      <stop offset=".65" stop-color="#b8692a"/><stop offset="1" stop-color="#7a3f17"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1dc"/><stop offset=".45" stop-color="#f0a860"/><stop offset="1" stop-color="#a4561f"/>
+    </linearGradient>
+    <linearGradient id="rb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b45"/><stop offset=".5" stop-color="#ffe9e9"/><stop offset="1" stop-color="#5b83ff"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-1 0; 1 0; 1 0" keyTimes="0; .5; 1" dur="4s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity="0"/><stop offset=".3" stop-color="#e3262f"/>
+      <stop offset=".5" stop-color="#ffd9a3"/><stop offset=".7" stop-color="#2a5bff"/>
+      <stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vbar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".35"/><stop offset="1" stop-color="#2a5bff" stop-opacity=".08"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <clipPath id="clip"><rect x="8" y="8" width="1184" height="464" rx="22"/></clipPath>
+  <g clip-path="url(#clip)">
+    <rect width="1200" height="480" fill="url(#bg)"/>
+    <ellipse cx="0" cy="480" rx="564" ry="504" fill="url(#red)">
+      <animate attributeName="opacity" values=".7;1;.7" dur="5s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="1200" cy="0" rx="564" ry="504" fill="url(#blue)">
+      <animate attributeName="opacity" values="1;.7;1" dur="5s" repeatCount="indefinite"/></ellipse>
+    <g fill="none" stroke="#fff" stroke-opacity=".13" stroke-width="1.4">
+    <line x1="8" y1="8" x2="168.0" y2="8.0"/>
+    <line x1="8" y1="8" x2="162.5" y2="49.4"/>
+    <line x1="8" y1="8" x2="146.6" y2="88.0"/>
+    <line x1="8" y1="8" x2="121.1" y2="121.1"/>
+    <line x1="8" y1="8" x2="88.0" y2="146.6"/>
+    <line x1="8" y1="8" x2="49.4" y2="162.5"/>
+    <line x1="8" y1="8" x2="8.0" y2="168.0"/>
+    <path d="M53.0,8.0 Q47.3,13.2 51.5,19.6 Q44.6,23.2 47.0,30.5 Q39.4,32.1 39.8,39.8 Q32.1,39.4 30.5,47.0 Q23.2,44.6 19.6,51.5 Q13.2,47.3 8.0,53.0 "/>
+    <path d="M98.0,8.0 Q86.5,18.3 94.9,31.3 Q81.2,38.3 85.9,53.0 Q70.8,56.2 71.6,71.6 Q56.2,70.8 53.0,85.9 Q38.3,81.2 31.3,94.9 Q18.3,86.5 8.0,98.0 "/>
+    <path d="M143.0,8.0 Q125.8,23.5 138.4,42.9 Q117.8,53.5 124.9,75.5 Q102.3,80.3 103.5,103.5 Q80.3,102.3 75.5,124.9 Q53.5,117.8 42.9,138.4 Q23.5,125.8 8.0,143.0 "/>
+    <path d="M188.0,8.0 Q165.0,28.7 181.9,54.6 Q154.3,68.6 163.9,98.0 Q133.7,104.4 135.3,135.3 Q104.4,133.7 98.0,163.9 Q68.6,154.3 54.6,181.9 Q28.7,165.0 8.0,188.0 "/>
+    <path d="M233.0,8.0 Q204.3,33.8 225.3,66.2 Q190.9,83.8 202.9,120.5 Q165.1,128.5 167.1,167.1 Q128.5,165.1 120.5,202.9 Q83.8,190.9 66.2,225.3 Q33.8,204.3 8.0,233.0 "/>
+<line x1="1192" y1="8" x2="1192.0" y2="168.0"/>
+    <line x1="1192" y1="8" x2="1150.6" y2="162.5"/>
+    <line x1="1192" y1="8" x2="1112.0" y2="146.6"/>
+    <line x1="1192" y1="8" x2="1078.9" y2="121.1"/>
+    <line x1="1192" y1="8" x2="1053.4" y2="88.0"/>
+    <line x1="1192" y1="8" x2="1037.5" y2="49.4"/>
+    <line x1="1192" y1="8" x2="1032.0" y2="8.0"/>
+    <path d="M1192.0,53.0 Q1186.8,47.3 1180.4,51.5 Q1176.8,44.6 1169.5,47.0 Q1167.9,39.4 1160.2,39.8 Q1160.6,32.1 1153.0,30.5 Q1155.4,23.2 1148.5,19.6 Q1152.7,13.2 1147.0,8.0 "/>
+    <path d="M1192.0,98.0 Q1181.7,86.5 1168.7,94.9 Q1161.7,81.2 1147.0,85.9 Q1143.8,70.8 1128.4,71.6 Q1129.2,56.2 1114.1,53.0 Q1118.8,38.3 1105.1,31.3 Q1113.5,18.3 1102.0,8.0 "/>
+    <path d="M1192.0,143.0 Q1176.5,125.8 1157.1,138.4 Q1146.5,117.8 1124.5,124.9 Q1119.7,102.3 1096.5,103.5 Q1097.7,80.3 1075.1,75.5 Q1082.2,53.5 1061.6,42.9 Q1074.2,23.5 1057.0,8.0 "/>
+    <path d="M1192.0,188.0 Q1171.3,165.0 1145.4,181.9 Q1131.4,154.3 1102.0,163.9 Q1095.6,133.7 1064.7,135.3 Q1066.3,104.4 1036.1,98.0 Q1045.7,68.6 1018.1,54.6 Q1035.0,28.7 1012.0,8.0 "/>
+    <path d="M1192.0,233.0 Q1166.2,204.3 1133.8,225.3 Q1116.2,190.9 1079.5,202.9 Q1071.5,165.1 1032.9,167.1 Q1034.9,128.5 997.1,120.5 Q1009.1,83.8 974.7,66.2 Q995.7,33.8 967.0,8.0 "/>
+<line x1="8" y1="472" x2="8.0" y2="352.0"/>
+    <line x1="8" y1="472" x2="39.1" y2="356.1"/>
+    <line x1="8" y1="472" x2="68.0" y2="368.1"/>
+    <line x1="8" y1="472" x2="92.9" y2="387.1"/>
+    <line x1="8" y1="472" x2="111.9" y2="412.0"/>
+    <line x1="8" y1="472" x2="123.9" y2="440.9"/>
+    <line x1="8" y1="472" x2="128.0" y2="472.0"/>
+    <path d="M8.0,432.0 Q12.6,437.1 18.4,433.4 Q21.5,439.5 28.0,437.4 Q29.4,444.1 36.3,443.7 Q35.9,450.6 42.6,452.0 Q40.5,458.5 46.6,461.6 Q42.9,467.4 48.0,472.0 "/>
+    <path d="M8.0,392.0 Q17.2,402.2 28.7,394.7 Q34.9,407.0 48.0,402.7 Q50.9,416.1 64.6,415.4 Q63.9,429.1 77.3,432.0 Q73.0,445.1 85.3,451.3 Q77.8,462.8 88.0,472.0 "/>
+    <path d="M8.0,352.0 Q21.8,367.3 39.1,356.1 Q48.4,374.4 68.0,368.1 Q72.3,388.2 92.9,387.1 Q91.8,407.7 111.9,412.0 Q105.6,431.6 123.9,440.9 Q112.7,458.2 128.0,472.0 "/>
+<line x1="1192" y1="472" x2="1072.0" y2="472.0"/>
+    <line x1="1192" y1="472" x2="1076.1" y2="440.9"/>
+    <line x1="1192" y1="472" x2="1088.1" y2="412.0"/>
+    <line x1="1192" y1="472" x2="1107.1" y2="387.1"/>
+    <line x1="1192" y1="472" x2="1132.0" y2="368.1"/>
+    <line x1="1192" y1="472" x2="1160.9" y2="356.1"/>
+    <line x1="1192" y1="472" x2="1192.0" y2="352.0"/>
+    <path d="M1152.0,472.0 Q1157.1,467.4 1153.4,461.6 Q1159.5,458.5 1157.4,452.0 Q1164.1,450.6 1163.7,443.7 Q1170.6,444.1 1172.0,437.4 Q1178.5,439.5 1181.6,433.4 Q1187.4,437.1 1192.0,432.0 "/>
+    <path d="M1112.0,472.0 Q1122.2,462.8 1114.7,451.3 Q1127.0,445.1 1122.7,432.0 Q1136.1,429.1 1135.4,415.4 Q1149.1,416.1 1152.0,402.7 Q1165.1,407.0 1171.3,394.7 Q1182.8,402.2 1192.0,392.0 "/>
+    <path d="M1072.0,472.0 Q1087.3,458.2 1076.1,440.9 Q1094.4,431.6 1088.1,412.0 Q1108.2,407.7 1107.1,387.1 Q1127.7,388.2 1132.0,368.1 Q1151.6,374.4 1160.9,356.1 Q1178.2,367.3 1192.0,352.0 "/>
+    </g>
+    <circle cx="600" cy="120" r="1.8" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
+    <circle cx="600" cy="400" r="1.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.3s" repeatCount="indefinite"/></circle>
+  </g>
+  <rect x="8" y="8" width="1184" height="464" rx="22" fill="none" stroke="url(#frame)" stroke-width="3"/>
+  <text x="600" y="44" text-anchor="middle" font-size="17" font-style="italic" fill="#aab3c8">Both Pis ride on the same headband with no link between them. The reflexes never wait on the brain.</text>
+  <rect x="40" y="70" width="500" height="380" rx="18" fill="#0b0e1a" fill-opacity=".75" stroke="#e3262f" stroke-width="1.5"/>
+  <text x="290" y="106" text-anchor="middle" font-size="20" font-weight="800" letter-spacing="4" fill="#ff5a5f">SPIDEY SENSE PI</text>
+  <text x="290" y="128" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#aab3c8">QNX · C firmware · firmware/</text>
+  <rect x="150" y="148" width="280" height="32" rx="8" fill="#0b0e1a" stroke="#e3262f" stroke-opacity=".75"/><text x="290.0" y="168.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">8× ultrasonic sensors</text>
+  <rect x="150" y="194" width="280" height="32" rx="8" fill="#0b0e1a" stroke="#e3262f" stroke-opacity=".75"/><text x="290.0" y="214.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">validate</text>
+  <path d="M290,182 v8 m-5,-5 l5,5 l5,-5" stroke="#e3262f" stroke-width="2" fill="none"/>
+  <rect x="150" y="240" width="280" height="32" rx="8" fill="#0b0e1a" stroke="#e3262f" stroke-opacity=".75"/><text x="290.0" y="260.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">median filter</text>
+  <path d="M290,228 v8 m-5,-5 l5,5 l5,-5" stroke="#e3262f" stroke-width="2" fill="none"/>
+  <rect x="150" y="286" width="280" height="32" rx="8" fill="#0b0e1a" stroke="#e3262f" stroke-opacity=".75"/><text x="290.0" y="306.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">band + hysteresis</text>
+  <path d="M290,274 v8 m-5,-5 l5,5 l5,-5" stroke="#e3262f" stroke-width="2" fill="none"/>
+  <rect x="150" y="332" width="280" height="32" rx="8" fill="#0b0e1a" stroke="#e3262f" stroke-opacity=".75"/><text x="290.0" y="352.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">pulse-rate pattern</text>
+  <path d="M290,320 v8 m-5,-5 l5,5 l5,-5" stroke="#e3262f" stroke-width="2" fill="none"/>
+  <rect x="150" y="378" width="280" height="32" rx="8" fill="#0b0e1a" stroke="#e3262f" stroke-opacity=".75"/><text x="290.0" y="398.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">8× vibration motors</text>
+  <path d="M290,366 v8 m-5,-5 l5,5 l5,-5" stroke="#e3262f" stroke-width="2" fill="none"/>
+  <circle cx="290" r="5" fill="#ff5a5f" filter="url(#softglow)"><animate attributeName="cy" values="164;394" dur="2.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" dur="2.2s" repeatCount="indefinite"/></circle>
+  <text x="290" y="432" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#aab3c8">local · no network · no camera · no AI · ~200 ms loop</text>
+  <rect x="660" y="70" width="500" height="380" rx="18" fill="#0b0e1a" fill-opacity=".75" stroke="#2a5bff" stroke-width="1.5"/>
+  <text x="910" y="106" text-anchor="middle" font-size="20" font-weight="800" letter-spacing="4" fill="#6d93ff">EYES &amp; VOICE</text>
+  <text x="910" y="128" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#aab3c8">Linux Pi or laptop · Python · main.py</text>
+  <rect x="678" y="166" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="734.0" y="186.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">camera</text>
+  <rect x="815" y="166" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="871.0" y="186.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">YOLO tracker</text>
+  <path d="M794,182 h14 m-5,-5 l5,5 l-5,5" stroke="#6d93ff" stroke-width="2" fill="none"/>
+  <rect x="952" y="166" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="1008.0" y="186.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">SceneState</text>
+  <path d="M931,182 h14 m-5,-5 l5,5 l-5,5" stroke="#6d93ff" stroke-width="2" fill="none"/>
+  <rect x="1078" y="172" width="66" height="20" rx="10" fill="#2a5bff" fill-opacity=".2" stroke="#2a5bff"/><text x="1111" y="186" text-anchor="middle" font-size="11" font-weight="700" letter-spacing="1" fill="#ffffff">LOCAL</text>
+  <rect x="678" y="228" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="734.0" y="248.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">mic</text>
+  <rect x="815" y="228" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="871.0" y="248.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">Vosk STT</text>
+  <path d="M794,244 h14 m-5,-5 l5,5 l-5,5" stroke="#6d93ff" stroke-width="2" fill="none"/>
+  <rect x="952" y="228" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="1008.0" y="248.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">commands</text>
+  <path d="M931,244 h14 m-5,-5 l5,5 l-5,5" stroke="#6d93ff" stroke-width="2" fill="none"/>
+  <rect x="1078" y="234" width="66" height="20" rx="10" fill="#2a5bff" fill-opacity=".2" stroke="#2a5bff"/><text x="1111" y="248" text-anchor="middle" font-size="11" font-weight="700" letter-spacing="1" fill="#ffffff">OFFLINE</text>
+  <rect x="678" y="290" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="734.0" y="310.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">question</text>
+  <rect x="815" y="290" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="871.0" y="310.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">frame + audio</text>
+  <path d="M794,306 h14 m-5,-5 l5,5 l-5,5" stroke="#6d93ff" stroke-width="2" fill="none"/>
+  <rect x="952" y="290" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="1008.0" y="310.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">OMNI</text>
+  <path d="M931,306 h14 m-5,-5 l5,5 l-5,5" stroke="#6d93ff" stroke-width="2" fill="none"/>
+  <rect x="1078" y="296" width="66" height="20" rx="10" fill="#cd7f32" fill-opacity=".2" stroke="#cd7f32"/><text x="1111" y="310" text-anchor="middle" font-size="11" font-weight="700" letter-spacing="1" fill="#ffffff">CLOUD*</text>
+  <rect x="678" y="352" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="734.0" y="372.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">answer</text>
+  <rect x="815" y="352" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="871.0" y="372.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">Piper TTS</text>
+  <path d="M794,368 h14 m-5,-5 l5,5 l-5,5" stroke="#6d93ff" stroke-width="2" fill="none"/>
+  <rect x="952" y="352" width="112" height="32" rx="8" fill="#0b0e1a" stroke="#2a5bff" stroke-opacity=".75"/><text x="1008.0" y="372.7" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#ffffff">speaker</text>
+  <path d="M931,368 h14 m-5,-5 l5,5 l-5,5" stroke="#6d93ff" stroke-width="2" fill="none"/>
+  <rect x="1078" y="358" width="66" height="20" rx="10" fill="#2a5bff" fill-opacity=".2" stroke="#2a5bff"/><text x="1111" y="372" text-anchor="middle" font-size="11" font-weight="700" letter-spacing="1" fill="#ffffff">OFFLINE</text>
+  <text x="910" y="432" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="13" fill="#aab3c8">* cloud is opt-in (--cloud) · one frame at a time</text>
+  <line x1="545" y1="260" x2="655" y2="260" stroke="#aab3c8" stroke-width="2" stroke-dasharray="6 6"/><circle cx="600" cy="260" r="17" fill="#05060b" stroke="#e3262f" stroke-width="2"/><path d="M593,253 l14,14 m0,-14 l-14,14" stroke="#ff5a5f" stroke-width="3" stroke-linecap="round"/><text x="600" y="228" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="3" fill="#ffd9a3">NO LINK</text><text x="600" y="300" text-anchor="middle" font-size="12" font-style="italic" fill="#aab3c8">by design</text>
+</svg>

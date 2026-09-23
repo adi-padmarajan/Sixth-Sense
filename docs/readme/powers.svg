@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="1200" height="340" role="img" aria-label="Three powers: feel where things are, ask what it is, and it never needs the cloud." font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#161a2e"/><stop offset="1" stop-color="#05060b"/>
+    </radialGradient>
+    <radialGradient id="red" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".55"/><stop offset="1" stop-color="#e3262f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blue" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#2a5bff" stop-opacity=".55"/><stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bronze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd9a3"/><stop offset=".35" stop-color="#e0914a"/>
+      <stop offset=".65" stop-color="#b8692a"/><stop offset="1" stop-color="#7a3f17"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1dc"/><stop offset=".45" stop-color="#f0a860"/><stop offset="1" stop-color="#a4561f"/>
+    </linearGradient>
+    <linearGradient id="rb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b45"/><stop offset=".5" stop-color="#ffe9e9"/><stop offset="1" stop-color="#5b83ff"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-1 0; 1 0; 1 0" keyTimes="0; .5; 1" dur="4s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity="0"/><stop offset=".3" stop-color="#e3262f"/>
+      <stop offset=".5" stop-color="#ffd9a3"/><stop offset=".7" stop-color="#2a5bff"/>
+      <stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="vbar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".35"/><stop offset="1" stop-color="#2a5bff" stop-opacity=".08"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <clipPath id="clip"><rect x="8" y="8" width="1184" height="324" rx="22"/></clipPath>
+  <g clip-path="url(#clip)">
+    <rect width="1200" height="340" fill="url(#bg)"/>
+    <ellipse cx="0" cy="340" rx="564" ry="357" fill="url(#red)">
+      <animate attributeName="opacity" values=".7;1;.7" dur="5s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="1200" cy="0" rx="564" ry="357" fill="url(#blue)">
+      <animate attributeName="opacity" values="1;.7;1" dur="5s" repeatCount="indefinite"/></ellipse>
+    <g fill="none" stroke="#fff" stroke-opacity=".13" stroke-width="1.4">
+    <line x1="8" y1="8" x2="158.0" y2="8.0"/>
+    <line x1="8" y1="8" x2="152.9" y2="46.8"/>
+    <line x1="8" y1="8" x2="137.9" y2="83.0"/>
+    <line x1="8" y1="8" x2="114.1" y2="114.1"/>
+    <line x1="8" y1="8" x2="83.0" y2="137.9"/>
+    <line x1="8" y1="8" x2="46.8" y2="152.9"/>
+    <line x1="8" y1="8" x2="8.0" y2="158.0"/>
+    <path d="M53.0,8.0 Q47.3,13.2 51.5,19.6 Q44.6,23.2 47.0,30.5 Q39.4,32.1 39.8,39.8 Q32.1,39.4 30.5,47.0 Q23.2,44.6 19.6,51.5 Q13.2,47.3 8.0,53.0 "/>
+    <path d="M98.0,8.0 Q86.5,18.3 94.9,31.3 Q81.2,38.3 85.9,53.0 Q70.8,56.2 71.6,71.6 Q56.2,70.8 53.0,85.9 Q38.3,81.2 31.3,94.9 Q18.3,86.5 8.0,98.0 "/>
+    <path d="M143.0,8.0 Q125.8,23.5 138.4,42.9 Q117.8,53.5 124.9,75.5 Q102.3,80.3 103.5,103.5 Q80.3,102.3 75.5,124.9 Q53.5,117.8 42.9,138.4 Q23.5,125.8 8.0,143.0 "/>
+    <path d="M188.0,8.0 Q165.0,28.7 181.9,54.6 Q154.3,68.6 163.9,98.0 Q133.7,104.4 135.3,135.3 Q104.4,133.7 98.0,163.9 Q68.6,154.3 54.6,181.9 Q28.7,165.0 8.0,188.0 "/>
+    <path d="M233.0,8.0 Q204.3,33.8 225.3,66.2 Q190.9,83.8 202.9,120.5 Q165.1,128.5 167.1,167.1 Q128.5,165.1 120.5,202.9 Q83.8,190.9 66.2,225.3 Q33.8,204.3 8.0,233.0 "/>
+<line x1="1192" y1="8" x2="1192.0" y2="158.0"/>
+    <line x1="1192" y1="8" x2="1153.2" y2="152.9"/>
+    <line x1="1192" y1="8" x2="1117.0" y2="137.9"/>
+    <line x1="1192" y1="8" x2="1085.9" y2="114.1"/>
+    <line x1="1192" y1="8" x2="1062.1" y2="83.0"/>
+    <line x1="1192" y1="8" x2="1047.1" y2="46.8"/>
+    <line x1="1192" y1="8" x2="1042.0" y2="8.0"/>
+    <path d="M1192.0,53.0 Q1186.8,47.3 1180.4,51.5 Q1176.8,44.6 1169.5,47.0 Q1167.9,39.4 1160.2,39.8 Q1160.6,32.1 1153.0,30.5 Q1155.4,23.2 1148.5,19.6 Q1152.7,13.2 1147.0,8.0 "/>
+    <path d="M1192.0,98.0 Q1181.7,86.5 1168.7,94.9 Q1161.7,81.2 1147.0,85.9 Q1143.8,70.8 1128.4,71.6 Q1129.2,56.2 1114.1,53.0 Q1118.8,38.3 1105.1,31.3 Q1113.5,18.3 1102.0,8.0 "/>
+    <path d="M1192.0,143.0 Q1176.5,125.8 1157.1,138.4 Q1146.5,117.8 1124.5,124.9 Q1119.7,102.3 1096.5,103.5 Q1097.7,80.3 1075.1,75.5 Q1082.2,53.5 1061.6,42.9 Q1074.2,23.5 1057.0,8.0 "/>
+    <path d="M1192.0,188.0 Q1171.3,165.0 1145.4,181.9 Q1131.4,154.3 1102.0,163.9 Q1095.6,133.7 1064.7,135.3 Q1066.3,104.4 1036.1,98.0 Q1045.7,68.6 1018.1,54.6 Q1035.0,28.7 1012.0,8.0 "/>
+    <path d="M1192.0,233.0 Q1166.2,204.3 1133.8,225.3 Q1116.2,190.9 1079.5,202.9 Q1071.5,165.1 1032.9,167.1 Q1034.9,128.5 997.1,120.5 Q1009.1,83.8 974.7,66.2 Q995.7,33.8 967.0,8.0 "/>
+<line x1="8" y1="332" x2="8.0" y2="222.0"/>
+    <line x1="8" y1="332" x2="36.5" y2="225.7"/>
+    <line x1="8" y1="332" x2="63.0" y2="236.7"/>
+    <line x1="8" y1="332" x2="85.8" y2="254.2"/>
+    <line x1="8" y1="332" x2="103.3" y2="277.0"/>
+    <line x1="8" y1="332" x2="114.3" y2="303.5"/>
+    <line x1="8" y1="332" x2="118.0" y2="332.0"/>
+    <path d="M8.0,292.0 Q12.6,297.1 18.4,293.4 Q21.5,299.5 28.0,297.4 Q29.4,304.1 36.3,303.7 Q35.9,310.6 42.6,312.0 Q40.5,318.5 46.6,321.6 Q42.9,327.4 48.0,332.0 "/>
+    <path d="M8.0,252.0 Q17.2,262.2 28.7,254.7 Q34.9,267.0 48.0,262.7 Q50.9,276.1 64.6,275.4 Q63.9,289.1 77.3,292.0 Q73.0,305.1 85.3,311.3 Q77.8,322.8 88.0,332.0 "/>
+    <path d="M8.0,212.0 Q21.8,227.3 39.1,216.1 Q48.4,234.4 68.0,228.1 Q72.3,248.2 92.9,247.1 Q91.8,267.7 111.9,272.0 Q105.6,291.6 123.9,300.9 Q112.7,318.2 128.0,332.0 "/>
+<line x1="1192" y1="332" x2="1082.0" y2="332.0"/>
+    <line x1="1192" y1="332" x2="1085.7" y2="303.5"/>
+    <line x1="1192" y1="332" x2="1096.7" y2="277.0"/>
+    <line x1="1192" y1="332" x2="1114.2" y2="254.2"/>
+    <line x1="1192" y1="332" x2="1137.0" y2="236.7"/>
+    <line x1="1192" y1="332" x2="1163.5" y2="225.7"/>
+    <line x1="1192" y1="332" x2="1192.0" y2="222.0"/>
+    <path d="M1152.0,332.0 Q1157.1,327.4 1153.4,321.6 Q1159.5,318.5 1157.4,312.0 Q1164.1,310.6 1163.7,303.7 Q1170.6,304.1 1172.0,297.4 Q1178.5,299.5 1181.6,293.4 Q1187.4,297.1 1192.0,292.0 "/>
+    <path d="M1112.0,332.0 Q1122.2,322.8 1114.7,311.3 Q1127.0,305.1 1122.7,292.0 Q1136.1,289.1 1135.4,275.4 Q1149.1,276.1 1152.0,262.7 Q1165.1,267.0 1171.3,254.7 Q1182.8,262.2 1192.0,252.0 "/>
+    <path d="M1072.0,332.0 Q1087.3,318.2 1076.1,300.9 Q1094.4,291.6 1088.1,272.0 Q1108.2,267.7 1107.1,247.1 Q1127.7,248.2 1132.0,228.1 Q1151.6,234.4 1160.9,216.1 Q1178.2,227.3 1192.0,212.0 "/>
+    </g>
+    <circle cx="600" cy="25" r="1.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0.5s" repeatCount="indefinite"/></circle>
+    <circle cx="400" cy="318" r="1.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.5s" repeatCount="indefinite"/></circle>
+    <circle cx="800" cy="318" r="1.8" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="2.5s" repeatCount="indefinite"/></circle>
+  </g>
+  <rect x="8" y="8" width="1184" height="324" rx="22" fill="none" stroke="url(#frame)" stroke-width="3"/>
+  <rect x="40" y="36" width="360" height="268" rx="18" fill="#0b0e1a" fill-opacity=".72" stroke="#e3262f" stroke-opacity=".8" stroke-width="1.5"/>
+  <g transform="translate(220.0,114)"><circle r="22" fill="none" stroke="#fff" stroke-width="2"/><path d="M-6,-21 L0,-30 L6,-21" fill="none" stroke="#fff" stroke-width="2"/><circle cx="0.0" cy="-38.0" r="5" fill="#e3262f"><animate attributeName="opacity" values="1;.15;1" dur="1.6s" begin="0.0s" repeatCount="indefinite"/></circle><circle cx="26.9" cy="-26.9" r="5" fill="#e3262f"><animate attributeName="opacity" values="1;.15;1" dur="1.6s" begin="0.2s" repeatCount="indefinite"/></circle><circle cx="38.0" cy="-0.0" r="5" fill="#e3262f"><animate attributeName="opacity" values="1;.15;1" dur="1.6s" begin="0.4s" repeatCount="indefinite"/></circle><circle cx="26.9" cy="26.9" r="5" fill="#e3262f"><animate attributeName="opacity" values="1;.15;1" dur="1.6s" begin="0.6s" repeatCount="indefinite"/></circle><circle cx="0.0" cy="38.0" r="5" fill="#e3262f"><animate attributeName="opacity" values="1;.15;1" dur="1.6s" begin="0.8s" repeatCount="indefinite"/></circle><circle cx="-26.9" cy="26.9" r="5" fill="#e3262f"><animate attributeName="opacity" values="1;.15;1" dur="1.6s" begin="1.0s" repeatCount="indefinite"/></circle><circle cx="-38.0" cy="0.0" r="5" fill="#e3262f"><animate attributeName="opacity" values="1;.15;1" dur="1.6s" begin="1.2s" repeatCount="indefinite"/></circle><circle cx="-26.9" cy="-26.9" r="5" fill="#e3262f"><animate attributeName="opacity" values="1;.15;1" dur="1.6s" begin="1.4s" repeatCount="indefinite"/></circle></g>
+  <g text-anchor="middle">
+    <text x="220.0" y="204" font-size="19" font-weight="800" letter-spacing="3" fill="#ffffff">FEEL WHERE THINGS ARE</text>
+    <text x="220.0" y="236" font-size="15" fill="#aab3c8">Eight sensors, eight motors, 45° apart.</text>
+    <text x="220.0" y="261" font-size="15" fill="#aab3c8">Something on your left? Left temple buzzes.</text>
+    <text x="220.0" y="286" font-size="15" fill="#aab3c8">Closer means faster pulses.</text>
+  </g>
+  <rect x="420" y="36" width="360" height="268" rx="18" fill="#0b0e1a" fill-opacity=".72" stroke="#cd7f32" stroke-opacity=".8" stroke-width="1.5"/>
+  <g transform="translate(600.0,114)"><path d="M-36,0 Q0,-32 36,0 Q0,32 -36,0 Z" fill="none" stroke="#fff" stroke-width="2"/><circle r="13" fill="#cd7f32"><animate attributeName="cx" values="-8;8;-8" dur="4s" repeatCount="indefinite"/></circle><path d="M-50,-30 h12 M-50,-30 v12 M50,-30 h-12 M50,-30 v12 M-50,30 h12 M-50,30 v-12 M50,30 h-12 M50,30 v-12" stroke="#ffd9a3" stroke-width="2.5" fill="none"/></g>
+  <g text-anchor="middle">
+    <text x="600.0" y="204" font-size="19" font-weight="800" letter-spacing="3" fill="#ffffff">ASK WHAT IT IS</text>
+    <text x="600.0" y="236" font-size="15" fill="#aab3c8">Say “what's in front of me”.</text>
+    <text x="600.0" y="261" font-size="15" fill="#aab3c8">Camera + YOLO + assistant answer</text>
+    <text x="600.0" y="286" font-size="15" fill="#aab3c8">out loud. Voice in, voice out.</text>
+  </g>
+  <rect x="800" y="36" width="360" height="268" rx="18" fill="#0b0e1a" fill-opacity=".72" stroke="#2a5bff" stroke-opacity=".8" stroke-width="1.5"/>
+  <g transform="translate(980.0,114)"><rect x="-30" y="-30" width="60" height="60" rx="6" fill="none" stroke="#6d93ff" stroke-width="2"/><path d="M-14,-30 v-8 M-14,30 v8 M-30,-14 h-8 M30,-14 h8" stroke="#6d93ff" stroke-width="2"/><path d="M0,-30 v-8 M0,30 v8 M-30,0 h-8 M30,0 h8" stroke="#6d93ff" stroke-width="2"/><path d="M14,-30 v-8 M14,30 v8 M-30,14 h-8 M30,14 h8" stroke="#6d93ff" stroke-width="2"/><text y="5" text-anchor="middle" font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace" font-size="14" font-weight="700" fill="#fff">QNX</text><polyline points="-70,50 -30,50 -20,40 -10,60 0,50 70,50" fill="none" stroke="#6d93ff" stroke-width="2" stroke-dasharray="160" stroke-dashoffset="160"><animate attributeName="stroke-dashoffset" values="160;0;-160" dur="2.4s" repeatCount="indefinite"/></polyline></g>
+  <g text-anchor="middle">
+    <text x="980.0" y="204" font-size="19" font-weight="800" letter-spacing="3" fill="#ffffff">NEVER NEEDS THE CLOUD</text>
+    <text x="980.0" y="236" font-size="15" fill="#aab3c8">Haptics run on their own QNX Pi:</text>
+    <text x="980.0" y="261" font-size="15" fill="#aab3c8">no camera, no cloud, no Wi-Fi, no AI.</text>
+    <text x="980.0" y="286" font-size="15" fill="#aab3c8">The tingle keeps tingling.</text>
+  </g>
+</svg>

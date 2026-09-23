@@ -1,68 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" role="img" aria-label="Hack the North 2026 award winner: 3rd Place, QNX: Embedded Systems with QNX that uses AI">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" role="img" aria-label="Hack the North 2026 award winner: 3rd Place, QNX: Embedded Systems with QNX that uses AI" font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif">
   <defs>
     <radialGradient id="bg" cx="50%" cy="45%" r="75%">
-      <stop offset="0" stop-color="#161a2e"/>
-      <stop offset="1" stop-color="#05060b"/>
+      <stop offset="0" stop-color="#161a2e"/><stop offset="1" stop-color="#05060b"/>
     </radialGradient>
     <radialGradient id="red" cx=".5" cy=".5" r=".5">
-      <stop offset="0" stop-color="#e3262f" stop-opacity=".55"/>
-      <stop offset="1" stop-color="#e3262f" stop-opacity="0"/>
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".55"/><stop offset="1" stop-color="#e3262f" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="blue" cx=".5" cy=".5" r=".5">
-      <stop offset="0" stop-color="#2a5bff" stop-opacity=".55"/>
-      <stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
+      <stop offset="0" stop-color="#2a5bff" stop-opacity=".55"/><stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="bronze" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffd9a3"/>
-      <stop offset=".35" stop-color="#e0914a"/>
-      <stop offset=".65" stop-color="#b8692a"/>
-      <stop offset="1" stop-color="#7a3f17"/>
+      <stop offset="0" stop-color="#ffd9a3"/><stop offset=".35" stop-color="#e0914a"/>
+      <stop offset=".65" stop-color="#b8692a"/><stop offset="1" stop-color="#7a3f17"/>
     </linearGradient>
     <linearGradient id="title" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff1dc"/>
-      <stop offset=".45" stop-color="#f0a860"/>
-      <stop offset="1" stop-color="#a4561f"/>
+      <stop offset="0" stop-color="#fff1dc"/><stop offset=".45" stop-color="#f0a860"/><stop offset="1" stop-color="#a4561f"/>
     </linearGradient>
-    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
-      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
-      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
-      <stop offset=".5" stop-color="#fff" stop-opacity=".9"/>
-      <stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+    <linearGradient id="rb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3b45"/><stop offset=".5" stop-color="#ffe9e9"/><stop offset="1" stop-color="#5b83ff"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/>
       <stop offset="1" stop-color="#fff" stop-opacity="0"/>
       <animateTransform attributeName="gradientTransform" type="translate" values="-1 0; 1 0; 1 0" keyTimes="0; .5; 1" dur="4s" repeatCount="indefinite"/>
     </linearGradient>
     <linearGradient id="frame" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#e3262f"/>
-      <stop offset=".5" stop-color="#cd7f32"/>
-      <stop offset="1" stop-color="#2a5bff"/>
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
     </linearGradient>
     <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#e3262f" stop-opacity="0"/>
-      <stop offset=".3" stop-color="#e3262f"/>
-      <stop offset=".5" stop-color="#ffd9a3"/>
-      <stop offset=".7" stop-color="#2a5bff"/>
+      <stop offset="0" stop-color="#e3262f" stop-opacity="0"/><stop offset=".3" stop-color="#e3262f"/>
+      <stop offset=".5" stop-color="#ffd9a3"/><stop offset=".7" stop-color="#2a5bff"/>
       <stop offset="1" stop-color="#2a5bff" stop-opacity="0"/>
     </linearGradient>
+    <linearGradient id="vbar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3262f"/><stop offset=".5" stop-color="#cd7f32"/><stop offset="1" stop-color="#2a5bff"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3262f" stop-opacity=".35"/><stop offset="1" stop-color="#2a5bff" stop-opacity=".08"/>
+    </linearGradient>
     <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
-      <feGaussianBlur stdDeviation="8" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
     <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="5" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <clipPath id="clip"><rect x="8" y="8" width="1184" height="384" rx="22"/></clipPath>
   </defs>
-
+  <clipPath id="clip"><rect x="8" y="8" width="1184" height="384" rx="22"/></clipPath>
   <g clip-path="url(#clip)">
     <rect width="1200" height="400" fill="url(#bg)"/>
-    <ellipse cx="0" cy="400" rx="560" ry="420" fill="url(#red)">
-      <animate attributeName="opacity" values=".7;1;.7" dur="5s" repeatCount="indefinite"/>
-    </ellipse>
-    <ellipse cx="1200" cy="0" rx="560" ry="420" fill="url(#blue)">
-      <animate attributeName="opacity" values="1;.7;1" dur="5s" repeatCount="indefinite"/>
-    </ellipse>
-    <g fill="none" stroke="#ffffff" stroke-opacity=".13" stroke-width="1.4">
+    <ellipse cx="0" cy="400" rx="564" ry="420" fill="url(#red)">
+      <animate attributeName="opacity" values=".7;1;.7" dur="5s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="1200" cy="0" rx="564" ry="420" fill="url(#blue)">
+      <animate attributeName="opacity" values="1;.7;1" dur="5s" repeatCount="indefinite"/></ellipse>
+    <g fill="none" stroke="#fff" stroke-opacity=".13" stroke-width="1.4">
     <line x1="8" y1="8" x2="238.0" y2="8.0"/>
     <line x1="8" y1="8" x2="230.2" y2="67.5"/>
     <line x1="8" y1="8" x2="207.2" y2="123.0"/>
@@ -75,7 +66,7 @@
     <path d="M143.0,8.0 Q125.8,23.5 138.4,42.9 Q117.8,53.5 124.9,75.5 Q102.3,80.3 103.5,103.5 Q80.3,102.3 75.5,124.9 Q53.5,117.8 42.9,138.4 Q23.5,125.8 8.0,143.0 "/>
     <path d="M188.0,8.0 Q165.0,28.7 181.9,54.6 Q154.3,68.6 163.9,98.0 Q133.7,104.4 135.3,135.3 Q104.4,133.7 98.0,163.9 Q68.6,154.3 54.6,181.9 Q28.7,165.0 8.0,188.0 "/>
     <path d="M233.0,8.0 Q204.3,33.8 225.3,66.2 Q190.9,83.8 202.9,120.5 Q165.1,128.5 167.1,167.1 Q128.5,165.1 120.5,202.9 Q83.8,190.9 66.2,225.3 Q33.8,204.3 8.0,233.0 "/>
-    <line x1="1192" y1="8" x2="1192.0" y2="238.0"/>
+<line x1="1192" y1="8" x2="1192.0" y2="238.0"/>
     <line x1="1192" y1="8" x2="1132.5" y2="230.2"/>
     <line x1="1192" y1="8" x2="1077.0" y2="207.2"/>
     <line x1="1192" y1="8" x2="1029.4" y2="170.6"/>
@@ -87,7 +78,7 @@
     <path d="M1192.0,143.0 Q1176.5,125.8 1157.1,138.4 Q1146.5,117.8 1124.5,124.9 Q1119.7,102.3 1096.5,103.5 Q1097.7,80.3 1075.1,75.5 Q1082.2,53.5 1061.6,42.9 Q1074.2,23.5 1057.0,8.0 "/>
     <path d="M1192.0,188.0 Q1171.3,165.0 1145.4,181.9 Q1131.4,154.3 1102.0,163.9 Q1095.6,133.7 1064.7,135.3 Q1066.3,104.4 1036.1,98.0 Q1045.7,68.6 1018.1,54.6 Q1035.0,28.7 1012.0,8.0 "/>
     <path d="M1192.0,233.0 Q1166.2,204.3 1133.8,225.3 Q1116.2,190.9 1079.5,202.9 Q1071.5,165.1 1032.9,167.1 Q1034.9,128.5 997.1,120.5 Q1009.1,83.8 974.7,66.2 Q995.7,33.8 967.0,8.0 "/>
-    <line x1="8" y1="392" x2="8.0" y2="242.0"/>
+<line x1="8" y1="392" x2="8.0" y2="242.0"/>
     <line x1="8" y1="392" x2="46.8" y2="247.1"/>
     <line x1="8" y1="392" x2="83.0" y2="262.1"/>
     <line x1="8" y1="392" x2="114.1" y2="285.9"/>
@@ -97,7 +88,7 @@
     <path d="M8.0,352.0 Q12.6,357.1 18.4,353.4 Q21.5,359.5 28.0,357.4 Q29.4,364.1 36.3,363.7 Q35.9,370.6 42.6,372.0 Q40.5,378.5 46.6,381.6 Q42.9,387.4 48.0,392.0 "/>
     <path d="M8.0,312.0 Q17.2,322.2 28.7,314.7 Q34.9,327.0 48.0,322.7 Q50.9,336.1 64.6,335.4 Q63.9,349.1 77.3,352.0 Q73.0,365.1 85.3,371.3 Q77.8,382.8 88.0,392.0 "/>
     <path d="M8.0,272.0 Q21.8,287.3 39.1,276.1 Q48.4,294.4 68.0,288.1 Q72.3,308.2 92.9,307.1 Q91.8,327.7 111.9,332.0 Q105.6,351.6 123.9,360.9 Q112.7,378.2 128.0,392.0 "/>
-    <line x1="1192" y1="392" x2="1042.0" y2="392.0"/>
+<line x1="1192" y1="392" x2="1042.0" y2="392.0"/>
     <line x1="1192" y1="392" x2="1047.1" y2="353.2"/>
     <line x1="1192" y1="392" x2="1062.1" y2="317.0"/>
     <line x1="1192" y1="392" x2="1085.9" y2="285.9"/>
@@ -108,59 +99,43 @@
     <path d="M1112.0,392.0 Q1122.2,382.8 1114.7,371.3 Q1127.0,365.1 1122.7,352.0 Q1136.1,349.1 1135.4,335.4 Q1149.1,336.1 1152.0,322.7 Q1165.1,327.0 1171.3,314.7 Q1182.8,322.2 1192.0,312.0 "/>
     <path d="M1072.0,392.0 Q1087.3,378.2 1076.1,360.9 Q1094.4,351.6 1088.1,332.0 Q1108.2,327.7 1107.1,307.1 Q1127.7,308.2 1132.0,288.1 Q1151.6,294.4 1160.9,276.1 Q1178.2,287.3 1192.0,272.0 "/>
     </g>
-    <g font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif">
-      <circle cx="120" cy="300" r="2.2" fill="#fff"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
-  <circle cx="1080" cy="95" r="2.6" fill="#fff"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0.8s" repeatCount="indefinite"/></circle>
-  <circle cx="300" cy="60" r="1.8" fill="#fff"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.6s" repeatCount="indefinite"/></circle>
-  <circle cx="900" cy="340" r="2" fill="#fff"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0.4s" repeatCount="indefinite"/></circle>
-  <circle cx="560" cy="30" r="1.6" fill="#fff"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="2.1s" repeatCount="indefinite"/></circle>
-  <circle cx="1010" cy="260" r="1.8" fill="#fff"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.2s" repeatCount="indefinite"/></circle>
-  <circle cx="190" cy="170" r="1.6" fill="#fff"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="2.6s" repeatCount="indefinite"/></circle>
-  <circle cx="760" cy="370" r="1.8" fill="#fff"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.9s" repeatCount="indefinite"/></circle>
-    </g>
+    <circle cx="120" cy="300" r="2.2" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0s" repeatCount="indefinite"/></circle>
+    <circle cx="1080" cy="95" r="2.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0.8s" repeatCount="indefinite"/></circle>
+    <circle cx="300" cy="60" r="1.8" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.6s" repeatCount="indefinite"/></circle>
+    <circle cx="900" cy="340" r="2" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="0.4s" repeatCount="indefinite"/></circle>
+    <circle cx="560" cy="30" r="1.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="2.1s" repeatCount="indefinite"/></circle>
+    <circle cx="1010" cy="260" r="1.8" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.2s" repeatCount="indefinite"/></circle>
+    <circle cx="190" cy="170" r="1.6" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="2.6s" repeatCount="indefinite"/></circle>
+    <circle cx="760" cy="370" r="1.8" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;1;0" dur="3s" begin="1.9s" repeatCount="indefinite"/></circle>
   </g>
-
   <rect x="8" y="8" width="1184" height="384" rx="22" fill="none" stroke="url(#frame)" stroke-width="3"/>
-
-  <!-- spider hanging on a thread -->
-  <g stroke="#ffffff" stroke-opacity=".35">
-    <line x1="1080" y1="8" x2="1080" y2="150" stroke-width="1">
-      <animate attributeName="y2" values="140;170;140" dur="4s" repeatCount="indefinite"/>
-    </line>
-  </g>
-  <g fill="#e3262f">
-    <animateTransform attributeName="transform" type="translate" values="0 0;0 30;0 0" dur="4s" repeatCount="indefinite"/>
-    <g transform="translate(1080,150)" stroke="#e3262f" stroke-width="2" stroke-linecap="round">
-      <ellipse cx="0" cy="0" rx="7" ry="9"/>
-      <circle cx="0" cy="-10" r="5"/>
-      <path d="M-5,-4 L-16,-14 M-6,0 L-18,-3 M-6,4 L-17,10 M-4,7 L-13,18 M5,-4 L16,-14 M6,0 L18,-3 M6,4 L17,10 M4,7 L13,18" fill="none"/>
-    </g>
-  </g>
-
-  <g font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif" text-anchor="middle">
+  <line x1="1080" y1="8" x2="1080" y2="140" stroke="#fff" stroke-opacity=".35">
+    <animate attributeName="y2" values="140;170;140" dur="4s" repeatCount="indefinite"/></line>
+  <g><animateTransform attributeName="transform" type="translate" values="0 0;0 30;0 0" dur="4s" repeatCount="indefinite"/>
+    <g transform="translate(1080,150.0) scale(1.0)" fill="#e3262f" stroke="#e3262f" stroke-width="2" stroke-linecap="round">
+      <ellipse rx="7" ry="9"/><circle cy="-10" r="5"/>
+      <path fill="none" d="M-5,-4 L-16,-14 M-6,0 L-18,-3 M-6,4 L-17,10 M-4,7 L-13,18 M5,-4 L16,-14 M6,0 L18,-3 M6,4 L17,10 M4,7 L13,18"/>
+    </g></g>
+  <g text-anchor="middle">
     <text x="600" y="72" font-size="17" font-weight="700" letter-spacing="7" fill="#ff5a5f">HACK THE NORTH 2026  ·  AWARD WINNER</text>
-
-    <g transform="translate(235,178)">
+  <g transform="translate(235,178)">
     <path d="M-22,-78 L-6,-26 L6,-26 L-8,-78 Z" fill="#e3262f"/>
     <path d="M22,-78 L6,-26 L-6,-26 L8,-78 Z" fill="#2a5bff"/>
     <circle r="40" fill="url(#bronze)" stroke="#5a2f12" stroke-width="3" filter="url(#softglow)"/>
     <circle r="31" fill="none" stroke="#ffe0b3" stroke-opacity=".55" stroke-width="2" stroke-dasharray="4 4"/>
     <text y="15" text-anchor="middle" font-size="42" font-weight="900" fill="#4a230c">3</text>
   </g>
-    <g transform="translate(965,178)">
+  <g transform="translate(965,178)">
     <path d="M-22,-78 L-6,-26 L6,-26 L-8,-78 Z" fill="#2a5bff"/>
     <path d="M22,-78 L6,-26 L-6,-26 L8,-78 Z" fill="#e3262f"/>
     <circle r="40" fill="url(#bronze)" stroke="#5a2f12" stroke-width="3" filter="url(#softglow)"/>
     <circle r="31" fill="none" stroke="#ffe0b3" stroke-opacity=".55" stroke-width="2" stroke-dasharray="4 4"/>
     <text y="15" text-anchor="middle" font-size="42" font-weight="900" fill="#4a230c">3</text>
   </g>
-
     <text x="600" y="200" font-size="100" font-weight="900" letter-spacing="2" fill="url(#title)" filter="url(#glow)">3RD PLACE</text>
     <text x="600" y="200" font-size="100" font-weight="900" letter-spacing="2" fill="url(#shine)">3RD PLACE</text>
-
     <rect x="330" y="232" width="540" height="2" fill="url(#rule)"/>
     <path d="M600,225 l8,8 l-8,8 l-8,-8 Z" fill="#ffd9a3"/>
-
     <text x="600" y="290" font-size="34" font-weight="700" fill="#ffffff">QNX: Embedded Systems with QNX that uses AI</text>
     <text x="600" y="338" font-size="19" font-style="italic" fill="#aab3c8">With great power comes great responsibility… and a podium finish.</text>
   </g>
