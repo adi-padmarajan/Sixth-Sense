@@ -9,25 +9,7 @@ and lets you *ask* what the camera sees, hands-free.**
 
 <br>
 
-<table>
-<tr>
-<td align="center">
-
-🕸️ &nbsp; ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ &nbsp; 🕸️
-
-<sub><b>HACK THE NORTH 2026 &nbsp;·&nbsp; AWARD WINNER</b></sub>
-
-# 🥉 3rd Place
-
-### QNX: Embedded Systems with QNX that uses AI
-
-<sub><i>With great power comes great responsibility… and a podium finish.</i></sub>
-
-🕸️ &nbsp; ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ &nbsp; 🕸️
-
-</td>
-</tr>
-</table>
+<img src="docs/award-banner.svg" alt="Hack the North 2026 award winner: 3rd Place, QNX: Embedded Systems with QNX that uses AI" width="900">
 
 <br>
 
