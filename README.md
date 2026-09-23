@@ -7,11 +7,36 @@
 **A head-worn wearable that turns nearby obstacles into directional vibration —
 and lets you *ask* what the camera sees, hands-free.**
 
+<br>
+
+<table>
+<tr>
+<td align="center">
+
+🕸️ &nbsp; ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ &nbsp; 🕸️
+
+<sub><b>HACK THE NORTH 2026 &nbsp;·&nbsp; AWARD WINNER</b></sub>
+
+# 🥉 3rd Place
+
+### QNX: Embedded Systems with QNX that uses AI
+
+<sub><i>With great power comes great responsibility… and a podium finish.</i></sub>
+
+🕸️ &nbsp; ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ &nbsp; 🕸️
+
+</td>
+</tr>
+</table>
+
+<br>
+
 <img src="spider-sense.avif" alt="SpideyIRL headband prototype" width="640">
 
 <br>
 
 [![Hack the North 2026](https://img.shields.io/badge/Hack%20the%20North-2026-6f42c1?style=flat-square)](https://hackthenorth.com)
+[![3rd Place — QNX Track](https://img.shields.io/badge/🥉%203rd%20Place-QNX%20Embedded%20%2B%20AI%20Track-cd7f32?style=flat-square)](https://hackthenorth.com)
 [![Tests](https://img.shields.io/badge/tests-224%20passing-brightgreen?style=flat-square)](#test)
 [![Firmware](https://img.shields.io/badge/firmware-C%20on%20QNX-blue?style=flat-square)](firmware/)
 [![Host](https://img.shields.io/badge/host-Python%203.11%2B-3776ab?style=flat-square)](#getting-started)
