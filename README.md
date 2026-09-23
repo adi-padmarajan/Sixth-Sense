@@ -111,7 +111,7 @@ they are.
 The build ships on **two independent Raspberry Pis** worn on the same headband,
 with **no link between them**. The reflexes never wait on the brain.
 
-<img src="docs/readme/devices.svg" alt="Two devices: the QNX Spidey Sense Pi runs 8 ultrasonic sensors, validate, median filter, band plus hysteresis, pulse-rate pattern, 8 vibration motors, locally with no network, camera or AI on a roughly 200 ms loop. The Eyes and Voice host runs camera to YOLO tracker to SceneState locally; mic to Vosk STT to commands offline; question to frame plus audio to the OMNI assistant in the cloud, opt-in; and answer to Piper TTS to speaker offline. A proof-of-concept link carries proximity alerts from the Spidey Sense Pi to the Eyes and Voice host." width="100%">
+<img src="docs/readme/devices.svg" alt="Two devices: the QNX Spidey Sense Pi runs 8 ultrasonic sensors, validate, median filter, band plus hysteresis, pulse-rate pattern, 8 vibration motors, locally with no network, camera or AI on a roughly 200 ms loop. The Eyes and Voice host runs camera to YOLO tracker to SceneState locally; mic to Vosk STT to commands offline; question to frame plus audio to the OMNI assistant in the cloud, opt-in; and answer to Piper TTS to speaker offline. A link carries proximity alerts from the Spidey Sense Pi to the Eyes and Voice host." width="100%">
 
 ### The layers
 

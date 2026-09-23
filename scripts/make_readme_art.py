@@ -287,7 +287,7 @@ def devices():
         parts.append(f'  <rect x="{rx + 418}" y="{y + 6}" width="66" height="20" rx="10" fill="{tc}" fill-opacity=".2" stroke="{tc}"/>'
                      f'<text x="{rx + 451}" y="{y + 20}" text-anchor="middle" font-size="11" font-weight="700" letter-spacing="1" fill="{INK}">{tag}</text>')
     parts.append(f'  <text x="{rx + 250}" y="{cy0 + 362}" text-anchor="middle" font-family="{MONO}" font-size="13" fill="{MUTED}">* cloud is opt-in (--cloud) · one frame at a time</text>')
-    # Proof-of-concept link: proximity alerts flow from the reflex Pi to the voice host
+    # Link: proximity alerts flow from the reflex Pi to the voice host
     parts.append(f'  <rect x="542" y="258.5" width="114" height="3" rx="1.5" fill="url(#frame)"/>'
                  f'<path d="M648,253 l10,7 l-10,7" fill="none" stroke="{BLUE}" stroke-width="3" stroke-linecap="round"/>'
                  + "".join(f'<circle cx="545" cy="260" r="4" opacity="0" fill="{GOLD}" filter="url(#softglow)">'
@@ -297,9 +297,8 @@ def devices():
                  + f'<circle cx="600" cy="260" r="17" fill="#05060b" stroke="{GOLD}" stroke-width="2"/>'
                  f'<path d="M591,260 a5,5 0 0 1 5,-5 h4 M609,260 a5,5 0 0 1 -5,5 h-4 M595,260 h10" fill="none" stroke="{GOLD}" stroke-width="2.5" stroke-linecap="round"/>'
                  f'<text x="600" y="228" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="3" fill="{GOLD}">LINKED</text>'
-                 f'<text x="600" y="298" text-anchor="middle" font-size="12" font-style="italic" fill="{MUTED}">proximity alerts</text>'
-                 f'<text x="600" y="314" text-anchor="middle" font-size="11" font-weight="700" letter-spacing="1" fill="{BRONZE}">PROOF OF CONCEPT</text>')
-    return svg(w, h, "Two devices: the QNX Spidey Sense Pi runs sensors to motors locally; the Eyes and Voice host runs camera, speech and the optional cloud assistant. A proof-of-concept link carries proximity alerts from the Spidey Sense Pi to the Eyes and Voice host.", "\n".join(parts))
+                 f'<text x="600" y="298" text-anchor="middle" font-size="12" font-style="italic" fill="{MUTED}">proximity alerts</text>')
+    return svg(w, h, "Two devices: the QNX Spidey Sense Pi runs sensors to motors locally; the Eyes and Voice host runs camera, speech and the optional cloud assistant. A link carries proximity alerts from the Spidey Sense Pi to the Eyes and Voice host.", "\n".join(parts))
 
 
 def directions():
