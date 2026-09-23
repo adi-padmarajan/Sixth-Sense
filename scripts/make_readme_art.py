@@ -253,7 +253,7 @@ def chip(x, y, w, text, color, h=32, size=13):
 def devices():
     w, h = 1200, 480
     parts = [backdrop(w, h, big=160, small=120, stars=[(600, 120, 1.8, 0), (600, 400, 1.6, 1.3)]), frame(w, h)]
-    parts.append(f'  <text x="600" y="44" text-anchor="middle" font-size="17" font-style="italic" fill="{MUTED}">Both Pis ride on the same headband with no link between them. The reflexes never wait on the brain.</text>')
+    parts.append(f'  <text x="600" y="44" text-anchor="middle" font-size="17" font-style="italic" fill="{MUTED}">Both Pis ride on the same headband, linked for proximity alerts. The reflexes never wait on the brain.</text>')
     # Left: Spidey Sense Pi
     lx, cy0 = 40, 70
     parts.append(f'  <rect x="{lx}" y="{cy0}" width="500" height="380" rx="18" fill="{CARD}" fill-opacity=".75" stroke="{RED}" stroke-width="1.5"/>')
@@ -287,13 +287,19 @@ def devices():
         parts.append(f'  <rect x="{rx + 418}" y="{y + 6}" width="66" height="20" rx="10" fill="{tc}" fill-opacity=".2" stroke="{tc}"/>'
                      f'<text x="{rx + 451}" y="{y + 20}" text-anchor="middle" font-size="11" font-weight="700" letter-spacing="1" fill="{INK}">{tag}</text>')
     parts.append(f'  <text x="{rx + 250}" y="{cy0 + 362}" text-anchor="middle" font-family="{MONO}" font-size="13" fill="{MUTED}">* cloud is opt-in (--cloud) · one frame at a time</text>')
-    # No link
-    parts.append(f'  <line x1="545" y1="260" x2="655" y2="260" stroke="{MUTED}" stroke-width="2" stroke-dasharray="6 6"/>'
-                 f'<circle cx="600" cy="260" r="17" fill="#05060b" stroke="{RED}" stroke-width="2"/>'
-                 f'<path d="M593,253 l14,14 m0,-14 l-14,14" stroke="#ff5a5f" stroke-width="3" stroke-linecap="round"/>'
-                 f'<text x="600" y="228" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="3" fill="{GOLD}">NO LINK</text>'
-                 f'<text x="600" y="300" text-anchor="middle" font-size="12" font-style="italic" fill="{MUTED}">by design</text>')
-    return svg(w, h, "Two devices: the QNX Spidey Sense Pi runs sensors to motors locally; the Eyes and Voice host runs camera, speech and the optional cloud assistant. No link between them.", "\n".join(parts))
+    # Proof-of-concept link: proximity alerts flow from the reflex Pi to the voice host
+    parts.append(f'  <rect x="542" y="258.5" width="114" height="3" rx="1.5" fill="url(#frame)"/>'
+                 f'<path d="M648,253 l10,7 l-10,7" fill="none" stroke="{BLUE}" stroke-width="3" stroke-linecap="round"/>'
+                 + "".join(f'<circle cx="545" cy="260" r="4" opacity="0" fill="{GOLD}" filter="url(#softglow)">'
+                           f'<animate attributeName="cx" values="545;655" dur="1.5s" begin="{b}s" repeatCount="indefinite"/>'
+                           f'<animate attributeName="opacity" values="0;1;1;0" dur="1.5s" begin="{b}s" repeatCount="indefinite"/></circle>'
+                           for b in (0, .5, 1.0))
+                 + f'<circle cx="600" cy="260" r="17" fill="#05060b" stroke="{GOLD}" stroke-width="2"/>'
+                 f'<path d="M591,260 a5,5 0 0 1 5,-5 h4 M609,260 a5,5 0 0 1 -5,5 h-4 M595,260 h10" fill="none" stroke="{GOLD}" stroke-width="2.5" stroke-linecap="round"/>'
+                 f'<text x="600" y="228" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="3" fill="{GOLD}">LINKED</text>'
+                 f'<text x="600" y="298" text-anchor="middle" font-size="12" font-style="italic" fill="{MUTED}">proximity alerts</text>'
+                 f'<text x="600" y="314" text-anchor="middle" font-size="11" font-weight="700" letter-spacing="1" fill="{BRONZE}">PROOF OF CONCEPT</text>')
+    return svg(w, h, "Two devices: the QNX Spidey Sense Pi runs sensors to motors locally; the Eyes and Voice host runs camera, speech and the optional cloud assistant. A proof-of-concept link carries proximity alerts from the Spidey Sense Pi to the Eyes and Voice host.", "\n".join(parts))
 
 
 def directions():
@@ -403,7 +409,7 @@ def footer():
 
 SECTIONS = [
     ("what-it-does", "What it does", "Feel where things are. Ask what they are.", RED),
-    ("architecture", "System architecture", "Two Pis, no link. The reflexes never wait on the brain.", BLUE),
+    ("architecture", "System architecture", "Two Pis, one headband. The reflexes never wait on the brain.", BLUE),
     ("how-it-works", "How it works", "Directions, distances, and the words it listens for.", RED),
     ("getting-started", "Getting started", "Suit up: clone, build, run, test.", BLUE),
     ("configuration", "Configuration", "Every knob, versioned and validated.", RED),
