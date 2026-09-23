@@ -26,7 +26,7 @@
 
 <br>
 
-<img src="spider-sense.avif" alt="SpideyIRL headband prototype" width="640">
+<!--<img src="spider-sense.avif" alt="SpideyIRL headband prototype" width="640">-->
 
 <br><br>
 
